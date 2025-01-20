@@ -1,1 +1,103 @@
-"<!DOCTYPE html><html><head><title>p2pmarh</title></head><body><h1>Hello, GitHub!</h1></body></html>" 
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lineares Gleichungssystem</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .copy-btn {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .copy-btn:hover {
+            background-color: #0056b3;
+        }
+        input[type="number"] {
+            padding: 8px;
+            margin: 10px 0;
+            width: 100px;
+        }
+        pre {
+            font-family: monospace;
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h3>Lösen Sie das folgende lineare Gleichungssystem:</h3>
+    <label for="studentId">Geben Sie die letzten 3 Ziffern Ihrer Matrikelnummer ein:</label>
+    <input type="number" id="studentId" placeholder="z.B. 123" />
+    <button onclick="generateQuestion()">Generieren</button>
+
+    <div id="question" style="margin-top: 20px;"></div>
+    <button class="copy-btn" id="copyBtn" style="display: none;" onclick="copyToClipboard()">Frage kopieren</button>
+
+    <script>
+        function seededRandom(seed) {
+            let x = Math.sin(seed) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function seededRandomInt(min, max, seed) {
+            return Math.floor(seededRandom(seed) * (max - min + 1)) + min;
+        }
+
+        function generateQuestion() {
+            const studentIdInput = document.getElementById("studentId").value;
+            if (!studentIdInput || isNaN(studentIdInput) || studentIdInput.length !== 3) {
+                alert("Bitte geben Sie genau 3 Ziffern ein.");
+                return;
+            }
+
+            const seed = parseInt(studentIdInput);
+            const A = [
+                [seededRandomInt(-10, 10, seed + 1), seededRandomInt(-10, 10, seed + 2), seededRandomInt(-10, 10, seed + 3), seededRandomInt(-10, 10, seed + 4)],
+                [seededRandomInt(-10, 10, seed + 5), seededRandomInt(-10, 10, seed + 6), seededRandomInt(-10, 10, seed + 7), seededRandomInt(-10, 10, seed + 8)],
+                [seededRandomInt(-10, 10, seed + 9), seededRandomInt(-10, 10, seed + 10), seededRandomInt(-10, 10, seed + 11), seededRandomInt(-10, 10, seed + 12)],
+                [seededRandomInt(-10, 10, seed + 13), seededRandomInt(-10, 10, seed + 14), seededRandomInt(-10, 10, seed + 15), seededRandomInt(-10, 10, seed + 16)]
+            ];
+            const b = [
+                seededRandomInt(-100, 100, seed + 17),
+                seededRandomInt(-100, 100, seed + 18),
+                seededRandomInt(-100, 100, seed + 19),
+                seededRandomInt(-100, 100, seed + 20)
+            ];
+
+            let questionHTML = `<pre>A ⋅ x = b</pre>`;
+            questionHTML += `<p><strong>A</strong> = \\( \\begin{pmatrix}`;
+            for (let row of A) {
+                questionHTML += `${row.join(" & ")} \\\\ `;
+            }
+            questionHTML = questionHTML.slice(0, -4) + `\\end{pmatrix} \\)</p>`;
+            questionHTML += `<p><strong>b</strong> = \\( \\begin{pmatrix} ${b.join(" \\\\ ")} \\end{pmatrix} \\)</p>`;
+            questionHTML += `<p>Hinweis: Die Lösung des linearen Gleichungssystems ist ganzzahlig.</p>`;
+
+            document.getElementById("question").innerHTML = questionHTML;
+            document.getElementById("copyBtn").style.display = "inline-block";
+            MathJax.typeset(); //
+        }
+
+        function copyToClipboard() {
+            const question = document.getElementById("question").innerText;
+            navigator.clipboard.writeText(question).then(() => {
+                alert("Frage wurde kopiert!");
+            }).catch((err) => {
+                console.error("Fehler beim Kopieren: ", err);
+            });
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</body>
+</html>

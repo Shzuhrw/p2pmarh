@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lineares Gleichungssystem</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            direction: ltr;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .copy-btn, .download-btn {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .copy-btn:hover, .download-btn:hover {
+            background-color: #0056b3;
+        }
+        input[type="number"] {
+            padding: 8px;
+            margin: 10px 0;
+            width: 100px;
+        }
+        pre {
+            font-family: monospace;
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h3>Lösen Sie das folgende lineare Gleichungssystem:</h3>
+    <label for="studentId">Geben Sie die letzten 3 Ziffern Ihrer Matrikelnummer ein:</label>
+    <input type="number" id="studentId" placeholder="z.B. 123" />
+    <button onclick="generateQuestion()">Generieren</button>
+
+    <div id="question" style="margin-top: 20px;"></div>
+    <button class="copy-btn" id="copyBtn" style="display: none;" onclick="copyToClipboard()">Frage kopieren</button>
+    <button class="download-btn" id="downloadBtn" style="display: none;" onclick="downloadPDF()">PDF herunterladen</button>
+
+    <script>
+        function seededRandom(seed) {
+            let x = Math.sin(seed) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function seededRandomInt(min, max, seed) {
+            return Math.floor(seededRandom(seed) * (max - min + 1)) + min;
+        }
+
+        let A, b, x;
+
+        function generateQuestion() {
+            const studentIdInput = document.getElementById("studentId").value;
+            if (!studentIdInput || isNaN(studentIdInput) || studentIdInput.length !== 3) {
+                alert("Bitte geben Sie genau 3 Ziffern ein.");
+                return;
+            }
+
+            const seed = parseInt(studentIdInput);
+            A = [
+                [seededRandomInt(-10, 10, seed + 1), seededRandomInt(-10, 10, seed + 2), seededRandomInt(-10, 10, seed + 3), seededRandomInt(-10, 10, seed + 4)],
+                [seededRandomInt(-10, 10, seed + 5), seededRandomInt(-10, 10, seed + 6), seededRandomInt(-10, 10, seed + 7), seededRandomInt(-10, 10, seed + 8)],
+                [seededRandomInt(-10, 10, seed + 9), seededRandomInt(-10, 10, seed + 10), seededRandomInt(-10, 10, seed + 11), seededRandomInt(-10, 10, seed + 12)],
+                [seededRandomInt(-10, 10, seed + 13), seededRandomInt(-10, 10, seed + 14), seededRandomInt(-10, 10, seed + 15), seededRandomInt(-10, 10, seed + 16)]
+            ];
+            b = [
+                seededRandomInt(-100, 100, seed + 17),
+                seededRandomInt(-100, 100, seed + 18),
+                seededRandomInt(-100, 100, seed + 19),
+                seededRandomInt(-100, 100, seed + 20)
+            ];
+
+            let questionHTML = `<pre>A ⋅ x = b</pre>`;
+            questionHTML += `<p><strong>A</strong> = \\( \\begin{pmatrix}`;
+            for (let row of A) {
+                questionHTML += `${row.join(" & ")} \\\\\\ `;
+            }
+            questionHTML = questionHTML.slice(0, -4) + `\\end{pmatrix} \\)</p>`;
+            questionHTML += `<p><strong>b</strong> = \\( \\begin{pmatrix} ${b.join(" \\\\\\ ")} \\end{pmatrix} \\)</p>`;
+            questionHTML += `<p>Hinweis: Die Lösung des linearen Gleichungssystems ist ganzzahlig.</p>`;
+            questionHTML += `<p>Die Lösung finden Sie im PDF-Dokument </p>`;
+
+            document.getElementById("question").innerHTML = questionHTML;
+
+            try {
+                x = math.lusolve(A, b).map(row => Math.round(row[0]));
+            } catch (error) {
+                x = null;
+            }
+
+            document.getElementById("copyBtn").style.display = "inline-block";
+            document.getElementById("downloadBtn").style.display = "inline-block";
+            MathJax.typeset();
+        }
+
+        function downloadPDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4',
+                    encryption: {
+                        userPassword: "123",
+                        ownerPassword: "123",
+                        userPermissions: []
+                    }
+                });
+
+                // Set font and style
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(16);
+                pdf.text("Lineares Gleichungssystem", 20, 20);
+
+                // Add Matrix A with better formatting
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(12);
+                pdf.text("Matrix A:", 20, 35);
+                
+                pdf.setFont("helvetica", "normal");
+                let yPos = 45;
+                A.forEach((row, index) => {
+                    const formattedRow = row.map(num => num.toString().padStart(8, ' ')).join('');
+                    pdf.text(`[ ${formattedRow} ]`, 30, yPos);
+                    yPos += 8;
+                });
+
+                // Add vector b with better formatting
+                pdf.setFont("helvetica", "bold");
+                pdf.text("Vektor b:", 20, yPos + 10);
+                
+                pdf.setFont("helvetica", "normal");
+                yPos += 20;
+                b.forEach((value, index) => {
+                    pdf.text(`[ ${value.toString().padStart(4, ' ')} ]`, 30, yPos);
+                    yPos += 8;
+                });
+
+                // Add solution with better formatting
+                pdf.setFont("helvetica", "bold");
+                pdf.text("Lösung:", 20, yPos + 10);
+                
+                pdf.setFont("helvetica", "normal");
+                yPos += 20;
+                if (Array.isArray(x)) {
+                    x.forEach((value, index) => {
+                        pdf.text(`x${index + 1} = ${value}`, 30, yPos);
+                        yPos += 8;
+                    });
+                } else {
+                    pdf.text("Keine eindeutige Lösung", 30, yPos);
+                }
+
+                // Add footer with timestamp
+                pdf.setFontSize(10);
+                pdf.setTextColor(128, 128, 128);
+                const date = new Date().toLocaleString('de-DE');
+                pdf.text(`Erstellt am: ${date}`, 20, pdf.internal.pageSize.height - 10);
+
+                // Add page border
+                pdf.setDrawColor(0);
+                pdf.setLineWidth(0.5);
+                pdf.rect(10, 10, pdf.internal.pageSize.width - 20, pdf.internal.pageSize.height - 20);
+
+                // Save the encrypted PDF
+                pdf.save("lineares_gleichungssystem.pdf");
+                
+            } catch (error) {
+                console.error("PDF-Erstellungsfehler:", error);
+                alert("Fehler beim Erstellen der PDF. Bitte versuchen Sie es erneut.");
+            }
+        }
+
+        function copyToClipboard() {
+            const question = document.getElementById("question").textContent;
+            
+            // Create a temporary textarea element
+            const textarea = document.createElement('textarea');
+            textarea.value = question;
+            textarea.setAttribute('readonly', ''); // Make it readonly to be less obtrusive
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px'; // Move it outside the screen
+            
+            document.body.appendChild(textarea);
+            
+            // Handle iOS devices
+            if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
+                const range = document.createRange();
+                range.selectNodeContents(textarea);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                textarea.setSelectionRange(0, 999999);
+            } else {
+                textarea.select();
+            }
+            
+            try {
+                // Try using the new Clipboard API first
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(question).then(() => {
+                        alert("Frage wurde kopiert!");
+                    }).catch(() => {
+                        // Fallback to execCommand
+                        document.execCommand('copy');
+                        alert("Frage wurde kopiert!");
+                    });
+                } else {
+                    // Fallback for older browsers or non-secure contexts
+                    document.execCommand('copy');
+                    alert("Frage wurde kopiert!");
+                }
+            } catch (err) {
+                console.error("Fehler beim Kopieren: ", err);
+                // If all else fails, show the text to manually copy
+                alert("Automatisches Kopieren nicht möglich. Bitte markieren und kopieren Sie den Text manuell:\n\n" + question);
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</body>
+</html>

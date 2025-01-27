@@ -183,52 +183,16 @@
             }
         }
 
-        function copyToClipboard() {
-            const question = document.getElementById("question").textContent;
-            
-            // Create a temporary textarea element
+        async function copyToClipboard() {
+            const questionText = document.getElementById("question").innerText;
             const textarea = document.createElement('textarea');
-            textarea.value = question;
-            textarea.setAttribute('readonly', ''); // Make it readonly to be less obtrusive
-            textarea.style.position = 'absolute';
-            textarea.style.left = '-9999px'; // Move it outside the screen
-            
+            textarea.value = questionText;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
             document.body.appendChild(textarea);
-            
-            // Handle iOS devices
-            if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
-                const range = document.createRange();
-                range.selectNodeContents(textarea);
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-                textarea.setSelectionRange(0, 999999);
-            } else {
-                textarea.select();
-            }
-            
-            try {
-                // Try using the new Clipboard API first
-                if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(question).then(() => {
-                        alert("Frage wurde kopiert!");
-                    }).catch(() => {
-                        // Fallback to execCommand
-                        document.execCommand('copy');
-                        alert("Frage wurde kopiert!");
-                    });
-                } else {
-                    // Fallback for older browsers or non-secure contexts
-                    document.execCommand('copy');
-                    alert("Frage wurde kopiert!");
-                }
-            } catch (err) {
-                console.error("Fehler beim Kopieren: ", err);
-                // If all else fails, show the text to manually copy
-                alert("Automatisches Kopieren nicht möglich. Bitte markieren und kopieren Sie den Text manuell:\n\n" + question);
-            } finally {
-                document.body.removeChild(textarea);
-            }
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>

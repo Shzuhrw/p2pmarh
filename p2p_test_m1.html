@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lineares Gleichungssystem</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .copy-btn, .download-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+        .copy-btn:hover, .download-btn:hover {
+            background-color: #45a049;
+        }
+        input[type="number"] {
+            padding: 10px;
+            margin: 10px 0;
+            width: 120px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        .matrix-display {
+            margin: 10px 0;
+            font-size: 16px;
+            padding: 0;
+        }
+        .question-text {
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .capture-area {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 0;
+            display: inline-block;
+        }
+        .matrix-wrapper {
+            margin: 0;
+            padding: 0;
+        }
+        .mjx-chtml {
+            margin: 0 !important;
+        }
+        .matrix-content {
+            margin: 5px 0;
+        }
+        #copyTextArea {
+            position: fixed;
+            top: -9999px;
+            left: -9999px;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 90%;
+            width: 500px;
+        }
+        .modal-content {
+            white-space: pre-wrap;
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        .close-modal {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .modal-buttons button {
+            width: 120px;
+            height: 40px;
+            padding: 8px 16px;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+        }
+        .modal-buttons button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Lineares Gleichungssystem</h2>
+        <div>
+            <label for="studentId">Geben Sie die letzten 3 Ziffern Ihrer Matrikelnummer ein:</label>
+            <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999" oninput="validateInput(this)" />
+            <button onclick="generateQuestion()">Generieren</button>
+        </div>
+        
+        <div id="captureArea" class="capture-area" style="display: none;">
+            <div id="questionText" class="question-text">
+                Lösen Sie das lineare Gleichungssystem: A⋅x = b
+            </div>
+            <div id="question" class="matrix-display matrix-wrapper"></div>
+        </div>
+        <div id="error-message"></div>
+        <button class="copy-btn" id="copyBtn" style="display: none;" onclick="copyLatex()">Frage kopieren</button>
+        <button class="download-btn" id="downloadBtn" style="display: none;" onclick="downloadPDF()">PDF herunterladen</button>
+    </div>
+
+    <div id="copyModal" class="modal">
+        <button class="close-modal" onclick="closeModal()">&times;</button>
+        <h3>Frage Text</h3>
+        <div id="modalContent" class="modal-content"></div>
+        <div class="modal-buttons">
+            <button class="copy-btn" onclick="copyModalContent()">Kopieren</button>
+        </div>
+    </div>
+    <div id="modalOverlay" class="modal-overlay" onclick="closeModal()"></div>
+    <textarea id="copyTextArea" readonly></textarea>
+
+    <script>
+        let A, b, x;
+        let pyodide;
+        let currentText = '';
+
+        function validateInput(input) {
+            if (input.value.length > 3) {
+                input.value = input.value.slice(0, 3);
+            }
+            input.value = input.value.replace(/[^0-9]/g, '');
+        }
+
+        async function initPyodide() {
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage("numpy");
+            
+            await pyodide.runPythonAsync(`
+                import numpy as np
+                import math
+
+                def seeded_random(seed):
+                    return math.sin(seed) * 10000 - math.floor(math.sin(seed) * 10000)
+
+                def seeded_random_int(min_val, max_val, seed):
+                    return math.floor(seeded_random(seed) * (max_val - min_val + 1)) + min_val
+
+                def generate_matrix(seed):
+                    A = [[seeded_random_int(-10, 10, seed + i * 4 + j) for j in range(4)] for i in range(4)]
+                    b = [seeded_random_int(-100, 100, seed + 16 + i) for i in range(4)]
+                    return A, b
+
+                def solve_system(A, b):
+                    try:
+                        x = np.linalg.solve(np.array(A), np.array(b))
+                        return [round(float(val)) for val in x]
+                    except:
+                        return None
+            `);
+        }
+
+        initPyodide();
+
+        async function generateQuestion() {
+            const studentIdInput = document.getElementById("studentId").value;
+            if (!studentIdInput || isNaN(studentIdInput) || studentIdInput.length !== 3) {
+                alert("Bitte geben Sie genau 3 Ziffern ein.");
+                return;
+            }
+
+            const seed = parseInt(studentIdInput);
+            
+            const result = await pyodide.runPythonAsync(`
+                A, b = generate_matrix(${seed})
+                x = solve_system(A, b)
+                [A, b, x]
+            `);
+            
+            [A, b, x] = result.toJs();
+
+            document.getElementById("captureArea").style.display = "block";
+
+            currentText = "Lösen Sie das lineare Gleichungssystem: A⋅x = b\n\n";
+            currentText += "Matrix A:\n";
+            
+            A.forEach((row, i) => {
+                currentText += row.map(n => n.toString().padStart(5)).join("  ");
+                if (i < A.length - 1) currentText += "\n";
+            });
+            
+            currentText += "\n\nVektor b:\n";
+            
+            b.forEach((num, i) => {
+                currentText += num.toString().padStart(5);
+                if (i < b.length - 1) currentText += "\n";
+            });
+
+            let questionHTML = `<div class="matrix-content"><strong>Matrix A:</strong></div>`;
+            questionHTML += `<div class="matrix-content">\\[A = \\left[\\begin{matrix}
+                ${A.map(row => row.join(" & ")).join(" \\\\ ")}
+            \\end{matrix}\\right]\\]</div>`;
+            questionHTML += `<div class="matrix-content"><strong>Vektor b:</strong></div>`;
+            questionHTML += `<div class="matrix-content">\\[b = \\left[\\begin{matrix}
+                ${b.join(" \\\\ ")}
+            \\end{matrix}\\right]\\]</div>`;
+            
+            document.getElementById("question").innerHTML = questionHTML;
+            document.getElementById("error-message").style.display = "none";
+
+            MathJax.typesetPromise().then(() => {
+                document.getElementById("copyBtn").style.display = "inline-block";
+                document.getElementById("downloadBtn").style.display = "inline-block";
+            });
+        }
+
+        function showModal(content) {
+            document.getElementById('modalContent').textContent = content;
+            document.getElementById('copyModal').style.display = 'block';
+            document.getElementById('modalOverlay').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('copyModal').style.display = 'none';
+            document.getElementById('modalOverlay').style.display = 'none';
+        }
+
+        function copyModalContent() {
+            const textArea = document.getElementById('copyTextArea');
+            textArea.value = currentText;
+            textArea.select();
+
+            try {
+                document.execCommand('copy');
+                closeModal();
+                alert("Die Frage wurde in die Zwischenablage kopiert!");
+            } catch (err) {
+                console.error("Fehler beim Kopieren:", err);
+                alert("Fehler beim Kopieren. Bitte markieren und kopieren Sie den Text manuell.");
+            }
+        }
+
+        async function copyLatex() {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(currentText);
+                    alert("Die Frage wurde in die Zwischenablage kopiert!");
+                } else {
+                    showModal(currentText);
+                }
+            } catch (err) {
+                console.error("Fehler beim Kopieren:", err);
+                showModal(currentText);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById("error-message");
+            errorDiv.textContent = message;
+            errorDiv.style.display = "block";
+        }
+
+        async function downloadPDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+                if (!jsPDF) {
+                    throw new Error('PDF library not loaded');
+                }
+
+                const doc = new jsPDF({
+                    encryption: {
+                        userPassword: "123",
+                        ownerPassword: "123",
+                        userPermissions: ["print", "modify", "copy", "annot-forms"]
+                    }
+                });
+
+                // Header
+                doc.setFont("times", "normal");
+                doc.setFontSize(12);
+                doc.text("SS 2025", 20, 20);
+                doc.text("Prof. Dr. J. Vorloeper", 20, 30);
+                doc.text("HRW", doc.internal.pageSize.width - 20, 20, { align: "right" });
+                
+                const date = new Date().toLocaleDateString('de-DE', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                doc.text(date, doc.internal.pageSize.width - 20, 30, { align: "right" });
+                
+                // Separator line
+                doc.setDrawColor(0);
+                doc.setLineWidth(0.5);
+                doc.line(20, 35, doc.internal.pageSize.width-20, 35);
+
+                // Title
+                doc.setFontSize(14);
+                doc.setFont("times", "bold");
+                doc.text("Ingenieurmathematik I", doc.internal.pageSize.width/2, 50, { align: "center" });
+                doc.setFontSize(12);
+                doc.text("Peer-Review-Aufgabe", doc.internal.pageSize.width/2, 60, { align: "center" });
+                
+                // Task number and description
+                doc.setFont("times", "bold");
+                doc.text("Aufgabe 1.", 20, 80);
+                doc.setFont("times", "normal");
+                doc.text("Lösen Sie das folgende lineare Gleichungssystem:", 20, 90);
+                doc.text("A · x = b", 20, 100);
+
+                // Matrix A
+                doc.setFont("times", "bold");
+                doc.text("Matrix A:", 20, 120);
+                doc.setFont("times", "normal");
+                
+                const matrixStartY = 125;
+                const cellHeight = 8;
+                const cellWidth = 15;
+                const matrixEndY = matrixStartY + (A.length * cellHeight);
+                
+                // Matrix A brackets
+                doc.setLineWidth(0.5);
+                // Left bracket
+                doc.line(35, matrixStartY, 38, matrixStartY);
+                doc.line(35, matrixStartY, 35, matrixEndY);
+                doc.line(35, matrixEndY, 38, matrixEndY);
+                
+                // Right bracket
+                const rightBracketX = 95;
+                doc.line(rightBracketX-3, matrixStartY, rightBracketX, matrixStartY);
+                doc.line(rightBracketX, matrixStartY, rightBracketX, matrixEndY);
+                doc.line(rightBracketX-3, matrixEndY, rightBracketX, matrixEndY);
+                
+                // Matrix entries
+                doc.setFontSize(12);
+                A.forEach((row, i) => {
+                    row.forEach((value, j) => {
+                        const text = value.toString();
+                        const xPos = 40 + (j * cellWidth);
+                        doc.text(text, xPos, matrixStartY + 5 + (i * cellHeight));
+                    });
+                });
+
+                // Vector b
+                doc.setFont("times", "bold");
+                doc.text("Vektor b:", 20, matrixEndY + 20);
+                doc.setFont("times", "normal");
+                
+                const vectorStartY = matrixEndY + 25;
+                const vectorEndY = vectorStartY + (b.length * cellHeight);
+                
+                // Vector b brackets
+                doc.line(35, vectorStartY, 38, vectorStartY);
+                doc.line(35, vectorStartY, 35, vectorEndY);
+                doc.line(35, vectorEndY, 38, vectorEndY);
+                
+                const vRightX = 55;
+                doc.line(vRightX-3, vectorStartY, vRightX, vectorStartY);
+                doc.line(vRightX, vectorStartY, vRightX, vectorEndY);
+                doc.line(vRightX-3, vectorEndY, vRightX, vectorEndY);
+                
+                // Vector b entries
+                b.forEach((value, i) => {
+                    const text = value.toString();
+                    doc.text(text, 40, vectorStartY + 5 + (i * cellHeight));
+                });
+
+                // Solution vector
+                doc.setFont("times", "bold");
+                doc.text("Lösung:", 20, vectorEndY + 20);
+                doc.setFont("times", "normal");
+                
+                const solutionStartY = vectorEndY + 25;
+                const solutionEndY = solutionStartY + (x.length * cellHeight);
+                
+                // Solution brackets
+                doc.line(35, solutionStartY, 38, solutionStartY);
+                doc.line(35, solutionStartY, 35, solutionEndY);
+                doc.line(35, solutionEndY, 38, solutionEndY);
+                
+                const sRightX = 55;
+                doc.line(sRightX-3, solutionStartY, sRightX, solutionStartY);
+                doc.line(sRightX, solutionStartY, sRightX, solutionEndY);
+                doc.line(sRightX-3, solutionEndY, sRightX, solutionEndY);
+                
+                // Solution entries
+                x.forEach((value, i) => {
+                    const text = value.toString();
+                    doc.text(text, 40, solutionStartY + 5 + (i * cellHeight));
+                });
+
+                // Footer
+                doc.setFontSize(10);
+                doc.setDrawColor(0);
+                doc.setLineWidth(0.5);
+                doc.line(20, doc.internal.pageSize.height-20, doc.internal.pageSize.width-20, doc.internal.pageSize.height-20);
+                doc.text("Seite 1/1", doc.internal.pageSize.width/2, doc.internal.pageSize.height-10, { align: "center" });
+
+                doc.save("lineares_gleichungssystem.pdf");
+                document.getElementById("error-message").style.display = "none";
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                showError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lineares Gleichungssystem</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .copy-btn, .download-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+        .copy-btn:hover, .download-btn:hover {
+            background-color: #45a049;
+        }
+        input[type="number"] {
+            padding: 10px;
+            margin: 10px 0;
+            width: 120px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        .matrix-display {
+            margin: 10px 0;
+            font-size: 16px;
+            padding: 0;
+        }
+        .question-text {
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .capture-area {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 0;
+            display: inline-block;
+        }
+        .matrix-wrapper {
+            margin: 0;
+            padding: 0;
+        }
+        .mjx-chtml {
+            margin: 0 !important;
+        }
+        .matrix-content {
+            margin: 5px 0;
+        }
+        #copyTextArea {
+            position: fixed;
+            top: -9999px;
+            left: -9999px;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 90%;
+            width: 500px;
+        }
+        .modal-content {
+            white-space: pre-wrap;
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        .close-modal {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Lineares Gleichungssystem</h2>
+        <div>
+            <label for="studentId">Geben Sie die letzten 3 Ziffern Ihrer Matrikelnummer ein:</label>
+            <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999" oninput="validateInput(this)" />
+            <button onclick="generateQuestion()">Generieren</button>
+        </div>
+        
+        <div id="captureArea" class="capture-area" style="display: none;">
+            <div id="questionText" class="question-text">
+                Lösen Sie das lineare Gleichungssystem: A⋅x = b
+            </div>
+            <div id="question" class="matrix-display matrix-wrapper"></div>
+        </div>
+        <div id="error-message"></div>
+        <button class="copy-btn" id="copyBtn" style="display: none;" onclick="copyLatex()">Frage kopieren</button>
+        <button class="download-btn" id="downloadBtn" style="display: none;" onclick="downloadPDF()">PDF herunterladen</button>
+    </div>
+
+    <!-- Modal for copying -->
+    <div id="copyModal" class="modal">
+        <button class="close-modal" onclick="closeModal()">&times;</button>
+        <h3>Frage Text</h3>
+        <div id="modalContent" class="modal-content"></div>
+        <div class="modal-buttons">
+            <button onclick="closeModal()">Schließen</button>
+            <button class="copy-btn" onclick="copyModalContent()">Kopieren</button>
+        </div>
+    </div>
+    <div id="modalOverlay" class="modal-overlay" onclick="closeModal()"></div>
+    <textarea id="copyTextArea" readonly></textarea>
+
+    <script>
+        let A, b, x;
+        let pyodide;
+        let currentText = '';
+
+        function validateInput(input) {
+            if (input.value.length > 3) {
+                input.value = input.value.slice(0, 3);
+            }
+            input.value = input.value.replace(/[^0-9]/g, '');
+        }
+
+        async function initPyodide() {
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage("numpy");
+            
+            await pyodide.runPythonAsync(`
+                import numpy as np
+                import math
+
+                def seeded_random(seed):
+                    return math.sin(seed) * 10000 - math.floor(math.sin(seed) * 10000)
+
+                def seeded_random_int(min_val, max_val, seed):
+                    return math.floor(seeded_random(seed) * (max_val - min_val + 1)) + min_val
+
+                def generate_matrix(seed):
+                    A = [[seeded_random_int(-10, 10, seed + i * 4 + j) for j in range(4)] for i in range(4)]
+                    b = [seeded_random_int(-100, 100, seed + 16 + i) for i in range(4)]
+                    return A, b
+
+                def solve_system(A, b):
+                    try:
+                        x = np.linalg.solve(np.array(A), np.array(b))
+                        return [round(float(val)) for val in x]
+                    except:
+                        return None
+            `);
+        }
+
+        initPyodide();
+
+        async function generateQuestion() {
+            const studentIdInput = document.getElementById("studentId").value;
+            if (!studentIdInput || isNaN(studentIdInput) || studentIdInput.length !== 3) {
+                alert("Bitte geben Sie genau 3 Ziffern ein.");
+                return;
+            }
+
+            const seed = parseInt(studentIdInput);
+            
+            const result = await pyodide.runPythonAsync(`
+                A, b = generate_matrix(${seed})
+                x = solve_system(A, b)
+                [A, b, x]
+            `);
+            
+            [A, b, x] = result.toJs();
+
+            document.getElementById("captureArea").style.display = "block";
+
+            currentText = "Lösen Sie das lineare Gleichungssystem: A⋅x = b\n\n";
+            currentText += "Matrix A:\n";
+            
+            A.forEach((row, i) => {
+                currentText += row.map(n => n.toString().padStart(5)).join("  ");
+                if (i < A.length - 1) currentText += "\n";
+            });
+            
+            currentText += "\n\nVektor b:\n";
+            
+            b.forEach((num, i) => {
+                currentText += num.toString().padStart(5);
+                if (i < b.length - 1) currentText += "\n";
+            });
+
+            let questionHTML = `<div class="matrix-content"><strong>Matrix A:</strong></div>`;
+            questionHTML += `<div class="matrix-content">\\[A = \\left[\\begin{matrix}
+                ${A.map(row => row.join(" & ")).join(" \\\\ ")}
+            \\end{matrix}\\right]\\]</div>`;
+            questionHTML += `<div class="matrix-content"><strong>Vektor b:</strong></div>`;
+            questionHTML += `<div class="matrix-content">\\[b = \\left[\\begin{matrix}
+                ${b.join(" \\\\ ")}
+            \\end{matrix}\\right]\\]</div>`;
+            
+            document.getElementById("question").innerHTML = questionHTML;
+            document.getElementById("error-message").style.display = "none";
+
+            MathJax.typesetPromise().then(() => {
+                document.getElementById("copyBtn").style.display = "inline-block";
+                document.getElementById("downloadBtn").style.display = "inline-block";
+            });
+        }
+
+        function showModal(content) {
+            document.getElementById('modalContent').textContent = content;
+            document.getElementById('copyModal').style.display = 'block';
+            document.getElementById('modalOverlay').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('copyModal').style.display = 'none';
+            document.getElementById('modalOverlay').style.display = 'none';
+        }
+
+        function copyModalContent() {
+            const textArea = document.getElementById('copyTextArea');
+            textArea.value = currentText;
+            textArea.select();
+
+            try {
+                document.execCommand('copy');
+                closeModal();
+                alert("Die Frage wurde in die Zwischenablage kopiert!");
+            } catch (err) {
+                console.error("Fehler beim Kopieren:", err);
+                alert("Fehler beim Kopieren. Bitte markieren und kopieren Sie den Text manuell.");
+            }
+        }
+
+        async function copyLatex() {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    // Modern clipboard API (if available)
+                    await navigator.clipboard.writeText(currentText);
+                    alert("Die Frage wurde in die Zwischenablage kopiert!");
+                } else {
+                    // Fallback: Show modal with content
+                    showModal(currentText);
+                }
+            } catch (err) {
+                console.error("Fehler beim Kopieren:", err);
+                // Fallback: Show modal with content
+                showModal(currentText);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById("error-message");
+            errorDiv.textContent = message;
+            errorDiv.style.display = "block";
+        }
+
+        async function downloadPDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+                if (!jsPDF) {
+                    throw new Error('PDF library not loaded');
+                }
+
+                const doc = new jsPDF({
+                    encryption: {
+                        userPassword: "123",
+                        ownerPassword: "123",
+                        userPermissions: ["print", "modify", "copy", "annot-forms"]
+                    }
+                });
+                
+                doc.setFillColor(41, 128, 185);
+                doc.rect(0, 0, doc.internal.pageSize.width, 40, 'F');
+                
+                doc.setTextColor(255, 255, 255);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(24);
+                doc.text("Lineares Gleichungssystem", 20, 25);
+                
+                doc.setTextColor(44, 62, 80);
+                doc.setFontSize(14);
+                doc.text("Lösen Sie das lineare Gleichungssystem:", 20, 50);
+                doc.setFont("helvetica", "normal");
+                doc.text("A · x = b", 20, 60);
+                
+                doc.setFont("helvetica", "bold");
+                let y = 80;
+                doc.text("Matrix A:", 20, y);
+                y += 10;
+                
+                doc.setFont("helvetica", "normal");
+                A.forEach((row, i) => {
+                    const formattedRow = row.map(n => n.toString().padStart(3)).join("  ");
+                    doc.text(formattedRow, 35, y + i * 8);
+                });
+                
+                const matrixHeight = (A.length - 1) * 8;
+                const startY = y - 3;
+                const endY = y + matrixHeight + 3;
+                
+                doc.line(30, startY, 32, startY);
+                doc.line(30, startY, 30, endY);
+                doc.line(30, endY, 32, endY);
+                
+                const rightX = 85;
+                doc.line(rightX - 2, startY, rightX, startY);
+                doc.line(rightX, startY, rightX, endY);
+                doc.line(rightX - 2, endY, rightX, endY);
+                
+                y += A.length * 8 + 20;
+                doc.setFont("helvetica", "bold");
+                doc.text("Vektor b:", 20, y);
+                y += 10;
+                
+                doc.setFont("helvetica", "normal");
+                b.forEach((value, i) => {
+                    doc.text(value.toString().padStart(5), 35, y + i * 8);
+                });
+                
+                const vectorHeight = (b.length - 1) * 8;
+                const vStartY = y - 3;
+                const vEndY = y + vectorHeight + 3;
+                
+                doc.line(30, vStartY, 32, vStartY);
+                doc.line(30, vStartY, 30, vEndY);
+                doc.line(30, vEndY, 32, vEndY);
+                
+                const vRightX = 55;
+                doc.line(vRightX - 2, vStartY, vRightX, vStartY);
+                doc.line(vRightX, vStartY, vRightX, vEndY);
+                doc.line(vRightX - 2, vEndY, vRightX, vEndY);
+
+                y += b.length * 8 + 20;
+                doc.setFont("helvetica", "bold");
+                doc.text("Lösung:", 20, y);
+                y += 10;
+                
+                doc.setFont("helvetica", "normal");
+                x.forEach((value, i) => {
+                    doc.text(value.toString().padStart(5), 35, y + i * 8);
+                });
+                
+                const sVectorHeight = (x.length - 1) * 8;
+                const sStartY = y - 3;
+                const sEndY = y + sVectorHeight + 3;
+                
+                doc.line(30, sStartY, 32, sStartY);
+                doc.line(30, sStartY, 30, sEndY);
+                doc.line(30, sEndY, 32, sEndY);
+                
+                const sRightX = 55;
+                doc.line(sRightX - 2, sStartY, sRightX, sStartY);
+                doc.line(sRightX, sStartY, sRightX, sEndY);
+                doc.line(sRightX - 2, sEndY, sRightX, sEndY);
+                
+                doc.setDrawColor(41, 128, 185);
+                doc.setLineWidth(0.5);
+                doc.line(20, doc.internal.pageSize.height - 20, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 20);
+                
+                doc.setFontSize(10);
+                doc.setTextColor(128, 128, 128);
+                const date = new Date().toLocaleString('de-DE');
+                doc.text(`Erstellt am: ${date}`, 20, doc.internal.pageSize.height - 10);
+
+                doc.save("lineares_gleichungssystem.pdf");
+                document.getElementById("error-message").style.display = "none";
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                showError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extremwertaufgabe</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        input[type="number"] {
+            padding: 10px;
+            width: 120px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #question, #question2 {
+            margin: 20px 0;
+            padding: 15px;
+            border: none;
+        }
+        .capture-area {
+            margin-top: 20px;
+        }
+        .task-text {
+            font-size: 18px;
+        }
+        .matrix-display {
+            font-size: 18px;
+            margin: 10px 0;
+            padding: 15px;
+        }
+        .matrix-wrapper {
+            margin: 10px 0;
+            padding: 15px;
+            border: none;
+        }
+        .math-container {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            font-size: 16px;
+        }
+        .pdf-math {
+            background: white;
+            padding: 30px;
+            margin: 20px;
+            font-size: 18px;
+            border: none;
+            text-align: center;
+        }
+        .mjx-chtml {
+            font-size: 120% !important;
+        }
+        .pdf-capture {
+            position: fixed;
+            top: -9999px;
+            left: -9999px;
+            background: white;
+            padding: 50px;
+            width: 800px;
+            border: none;
+            box-shadow: none;
+        }
+        .pdf-math {
+            font-size: 28px !important;
+            text-align: center;
+            margin: 40px 0;
+            line-height: 2.5;
+            background: white;
+        }
+        .pdf-math .mjx-chtml {
+            font-size: 180% !important;
+            margin: 30px auto !important;
+            display: block !important;
+        }
+        .pdf-math .mjx-math {
+            text-align: center !important;
+            display: block !important;
+            margin: 1em 0 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align: center">Peer-Review-Aufgabe</h2>
+
+        <div>
+            <label for="studentId">Geben Sie die letzten 3 Ziffern Ihrer Matrikelnummer ein:</label>
+            <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999">
+            <button onclick="generateQuestion()" class="btn">Generieren</button>
+        </div>
+        
+        <div id="captureArea" class="capture-area" style="display: none;">
+            <div class="task-text" style="margin-bottom: 15px;">
+                <strong>Aufgabe 1:</strong> Berechnen Sie den Real- und Imaginärteil für:
+            </div>
+            <div id="question" class="matrix-display matrix-wrapper">
+                <!-- z = expression will be inserted here -->
+            </div>
+            <div id="solution1" style="display: none;"></div>
+            <div class="task-text" style="margin-top: 30px; margin-bottom: 15px;">
+                <strong>Aufgabe 2:</strong> Lösen Sie das folgende lineare Gleichungssystem:
+            </div>
+            <div id="question2" class="matrix-display matrix-wrapper">
+                <!-- Matrix content will be inserted here -->
+            </div>
+            <div id="solution2" style="display: none;"></div>
+            <div class="task-text" style="margin-top: 30px; margin-bottom: 15px;">
+                <strong>Aufgabe 3:</strong> Berechnen Sie die Determinante der Matrix:
+            </div>
+            <div id="question3" class="matrix-display matrix-wrapper">
+                <!-- Matrix content will be inserted here -->
+            </div>
+            <div id="solution3" style="display: none;"></div>
+        </div>
+        
+        <div>
+            <button id="screenshotBtn" class="btn" style="display: none" onclick="takeScreenshot()">Screenshot erstellen</button>
+            <button id="pdfBtn" class="btn" style="display: none" onclick="downloadPDF()">PDF herunterladen</button>
+        </div>
+    </div>
+
+    <script>
+        let pyodide, a_str, b_str, re_str, im_str, questionText, copyText, A_str_2, b_str_2, x_str_2, A_str_3, det_str;
+        
+        async function init() {
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage("sympy");
+            await pyodide.runPythonAsync(`
+                import sympy as sp
+                import random
+
+                def generate_problem(sid):
+                    random.seed(sid)
+                    a = random.randint(1, 3) + 1j * random.randint(1, 6)
+                    b = random.randint(1, 3) + 1j * random.randint(1, 4)
+
+                    re_q = sp.Rational(sp.re(a)*sp.re(b)+sp.im(a)*sp.im(b), sp.re(b)*sp.re(b)+sp.im(b)*sp.im(b))
+                    im_q = sp.Rational(-sp.re(a)*sp.im(b)+sp.im(a)*sp.re(b), sp.re(b)*sp.re(b)+sp.im(b)*sp.im(b))
+
+                    # LaTeX format for display
+                    a_str = sp.latex(a).replace("\\\\mathtt{\\\\text{(", "").replace(")}}", "").replace("j", " \\\\textnormal{i}")
+                    b_str = sp.latex(b).replace("\\\\mathtt{\\\\text{(", "").replace(")}}", "").replace("j", " \\\\textnormal{i}")
+                    
+                    re_str = sp.latex(re_q)
+                    im_str = sp.latex(im_q)
+                    
+                    # Plain text format for copying - using integer values
+                    a_plain = f"{int(sp.re(a))}{'+' if sp.im(a) >= 0 else ''}{int(sp.im(a))}i"
+                    b_plain = f"{int(sp.re(b))}{'+' if sp.im(b) >= 0 else ''}{int(sp.im(b))}i"
+                    
+                    return [a_str, b_str, re_str, im_str, a_plain, b_plain]
+            `);
+            await pyodide.runPythonAsync(`
+                import sympy as sp
+                import random
+
+                def generate_problem_2(sid):
+                    random.seed(sid)
+                    L2 = sp.eye(4)
+                    L2[2, 0] = random.randint(-9, 9) + 1j * random.randint(-4, 4)
+                    L2[2, 1] = random.randint(-9, 9) + 1j * random.randint(-3, 4)
+                    L2[3, 1] = random.randint(-9, 9) + 1j * random.randint(-4, 2)
+                    L2[3, 2] = random.randint(-9, 9) + 1j * random.randint(-3, 3)
+
+                    d2 = sp.diag(random.choices(range(1, 12), k=4))
+                    D2 = sp.diag(d2[0] + 1j * random.randint(-3, 3),
+                                 d2[1] + 1j * random.randint(-3, 3),
+                                 d2[2] + 1j * random.randint(-2, 2),
+                                 d2[3] + 1j * random.randint(-3, 3))
+
+                    x2 = sp.Matrix(random.choices(range(-5, 5), k=4)) + 1j * sp.Matrix(random.choices(range(-2, 3), k=4))
+
+                    A2 = sp.simplify(L2 * D2 * L2.T)
+                    b2 = sp.simplify(A2*x2)
+
+                    A_str_2 = sp.latex(A2)
+                    A_str_2 = A_str_2[6:-7]
+                    A_str_2 = A_str_2.replace("matrix", "pmatrix")
+                    A_str_2 = A_str_2.replace(".0 ", " ")
+                    A_str_2 = A_str_2.replace("j", "i")
+                    A_str_2 = A_str_2.replace("\\left", "")
+                    A_str_2 = A_str_2.replace("\\right", "")
+                    A_str_2 = A_str_2.replace("(", "")
+                    A_str_2 = A_str_2.replace(")", "")
+
+                    b_str_2 = sp.latex(b2)
+                    b_str_2 = b_str_2[6:-7]
+                    b_str_2 = b_str_2.replace("matrix", "pmatrix")
+                    b_str_2 = b_str_2.replace(".0 ", " ")
+                    b_str_2 = b_str_2.replace("j", "i")
+                    b_str_2 = b_str_2.replace("\\left", "")
+                    b_str_2 = b_str_2.replace("\\right", "")
+                    b_str_2 = b_str_2.replace("(", "")
+                    b_str_2 = b_str_2.replace(")", "")
+
+                    x_str_2 = sp.latex(x2)
+                    x_str_2 = x_str_2[6:-7]
+                    x_str_2 = x_str_2.replace("matrix", "pmatrix")
+                    x_str_2 = x_str_2.replace(".0 ", " ")
+                    x_str_2 = x_str_2.replace("j", "i")
+                    x_str_2 = x_str_2.replace("\\left", "")
+                    x_str_2 = x_str_2.replace("\\right", "")
+                    x_str_2 = x_str_2.replace("(", "")
+                    x_str_2 = x_str_2.replace(")", "")
+                    
+                    return [A_str_2, b_str_2, x_str_2]
+            `);
+            await pyodide.runPythonAsync(`
+                import sympy as sp
+                import random
+
+                def generate_problem_3(sid):
+                    random.seed(sid)
+                    L = sp.eye(4)
+                    L[2, 0] = random.randint(-9, 9)
+                    L[2, 1] = random.randint(-9, 9)
+                    L[3, 1] = random.randint(-9, 9)
+                    L[3, 2] = random.randint(-9, 9)
+
+                    d = sp.diag(random.choices(range(1, 12), k=4))
+                    D = sp.diag(d[0], d[1], d[2], d[3])
+
+                    A = sp.simplify(L * D * L.T)
+                    det = A.det()
+
+                    A_str = sp.latex(A)
+                    A_str = A_str[6:-7]
+                    A_str = A_str.replace("matrix", "pmatrix")
+                    A_str = A_str.replace(".0 ", " ")
+                    
+                    # Convert determinant to string
+                    det_str = str(det)
+
+                    return [A_str, det_str]
+            `);
+        }
+        
+        async function generateQuestion() {
+            try {
+                const id = document.getElementById("studentId").value;
+                if (!id || id.length !== 3) {
+                    alert("Bitte geben Sie genau 3 Ziffern ein.");
+                    return;
+                }
+        
+                const result = await pyodide.runPythonAsync(`generate_problem(${id})`);
+                [a_str, b_str, re_str, im_str, a_plain, b_plain] = result.toJs();
+                
+                const result2 = await pyodide.runPythonAsync(`generate_problem_2(${id})`);
+                [A_str_2, b_str_2, x_str_2] = result2.toJs();
+                
+                const result3 = await pyodide.runPythonAsync(`generate_problem_3(${id})`);
+                [A_str_3, det_str] = result3.toJs();
+                
+                // LaTeX format for display - Separate blocks for each question
+                const question1Latex = `\\text{Aufgabe 1}\\\\[0.3cm]` +
+                                  `\\text{Berechnen Sie den Real- und Imaginärteil von}\\\\[0.2cm]` +
+                                  `z = \\frac{${a_str}}{${b_str}}`;
+
+                const question2Latex = `\\text{Aufgabe 2}\\\\[0.3cm]` +
+                                  `\\text{Lösen Sie das lineare Gleichungssystem}\\\\[0.2cm]` +
+                                  `${A_str_2} \\cdot \\symbf{z} = ${b_str_2}`;
+                
+                const question3Latex = `\\text{Aufgabe 3}\\\\[0.3cm]` +
+                                  `\\text{Berechnen Sie die Determinante der Matrix}\\\\[0.2cm]` +
+                                  `${A_str_3}`;
+
+                document.getElementById("question").innerHTML = `\\[z = \\frac{${a_str}}{${b_str}}\\]`; 
+                document.getElementById("question2").innerHTML = `\\[${A_str_2} \\cdot \\symbf{z} = ${b_str_2}\\]`; 
+                document.getElementById("question3").innerHTML = `\\[${A_str_3}\\]`; 
+                document.getElementById("solution1").textContent = `z = ${re_str} ${im_str.startsWith('-') ? '' : '+'} ${im_str}i`;
+                document.getElementById("solution2").textContent = `\\mathbf{x} = ${x_str_2.replace(/\\textnormal{i}/g, "i").replace(/\\/g, '')}`;
+                document.getElementById("solution3").textContent = `det(A) = ${det_str}`;
+                MathJax.typeset();
+                document.getElementById("captureArea").style.display = "block";
+                document.getElementById("pdfBtn").style.display = "inline-block";
+                document.getElementById("screenshotBtn").style.display = "inline-block";
+            } catch (err) {
+                alert("Ein Fehler ist aufgetreten.");
+                console.error(err);
+            }
+        }
+        
+        async function takeScreenshot() {
+            try {
+                // Wait for MathJax to finish rendering
+                await MathJax.typesetPromise();
+                
+                const element = document.querySelector('#captureArea');
+                
+                // Show yellow highlight
+                element.style.backgroundColor = '#ffeb3b';
+                
+                // Wait a moment to show the highlight
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Use dom-to-image
+                const dataUrl = await domtoimage.toPng(element, {
+                    bgcolor: 'white',
+                    style: {
+                        margin: '0',
+                        padding: '20px'
+                    }
+                });
+                
+                // Reset background color
+                element.style.backgroundColor = 'white';
+                
+                // Try to copy to clipboard
+                try {
+                    const response = await fetch(dataUrl);
+                    const blob = await response.blob();
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            'image/png': blob
+                        })
+                    ]);
+                    alert('Screenshot copied to clipboard!');
+                } catch (err) {
+                    // If clipboard copy fails, download the image
+                    const link = document.createElement('a');
+                    link.download = 'questions-screenshot.png';
+                    link.href = dataUrl;
+                    link.click();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ein Fehler ist aufgetreten.');
+            }
+        }
+        
+        async function downloadPDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+                if (!jsPDF) {
+                    throw new Error('jsPDF is not loaded');
+                }
+
+                const doc = new jsPDF({
+                    encryption: {
+                        userPassword: "123",
+                        ownerPassword: "123",
+                        userPermissions: ["print", "modify", "copy", "annot-forms"]
+                    },
+                    format: 'a4',
+                    unit: 'mm'
+                });
+
+                function addHeader(pageNum) {
+                    doc.setFont("helvetica", "normal");
+                    
+                    // Right side
+                    doc.setFontSize(14);
+                    doc.text("SoSe 2025", 20, 15);
+                    doc.setFontSize(12);
+                    doc.text("Prof. Dr. J. Vorloeper", 20, 22);
+
+                    // Left side
+                    doc.setFontSize(14);
+                    doc.text("HRW", doc.internal.pageSize.width - 20, 15, { align: "right" });
+                    const now = new Date();
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const year = now.getFullYear();
+                    const dateStr = `${day}.${month}.${year}`;
+                    doc.setFontSize(12);
+                    doc.text(dateStr, doc.internal.pageSize.width - 20, 22, { align: "right" });
+
+                    // Separator line
+                    doc.setDrawColor(0);
+                    doc.setLineWidth(0.5);
+                    doc.line(20, 25, doc.internal.pageSize.width - 20, 25);
+
+                    // Center text below line
+                    doc.setFontSize(14);
+                    doc.text("Ingenieurmathematik II", doc.internal.pageSize.width/2, 35, { align: "center" });
+                    doc.text("Peer-Review-Aufgabe", doc.internal.pageSize.width/2, 42, { align: "center" });
+                }
+
+                function addFooter(pageNum, totalPages) {
+                    const pageHeight = doc.internal.pageSize.height;
+                    doc.setDrawColor(0);
+                    doc.setLineWidth(0.5);
+                    doc.line(20, pageHeight - 20, doc.internal.pageSize.width - 20, pageHeight - 20);
+                    doc.setFontSize(10);
+                    doc.text(`Seite ${pageNum}/${totalPages}`, doc.internal.pageSize.width/2, pageHeight - 10, { align: "center" });
+                }
+
+                // Add first page header
+                addHeader(1);
+                let yPosition = 55;
+
+                // Task 1
+                doc.setFontSize(12);
+                doc.text("Aufgabe 1:", 20, yPosition);
+                yPosition += 10;
+                doc.text("Berechnen Sie den Real- und Imaginärteil für:", 20, yPosition);
+                yPosition += 15;
+
+                // Question 1
+                doc.setFontSize(14);
+                
+                // Draw z = first
+                doc.text("z = ", 35, yPosition);
+
+                // Handle the case where a_str and b_str might not contain fractions
+                let num = a_str.replace(/\\textnormal{i}/g, "i").replace(/\\frac{/g, "").replace(/}{/g, "/").replace(/}/g, "");
+                let den = b_str.replace(/\\textnormal{i}/g, "i").replace(/\\frac{/g, "").replace(/}{/g, "/").replace(/}/g, "");
+                if (num.includes('/')) {
+                    [num, den] = num.split('/');
+                }
+
+                // Draw the fraction for z
+                const numeratorWidth = doc.getTextWidth(num);
+                const denominatorWidth = doc.getTextWidth(den);
+                const maxWidth = Math.max(numeratorWidth, denominatorWidth);
+                const fractionX = 45;
+                
+                // Draw numerator
+                doc.text(num, fractionX, yPosition - 3);
+                
+                // Draw fraction line
+                doc.line(fractionX, yPosition, fractionX + maxWidth, yPosition);
+                
+                // Draw denominator
+                doc.text(den, fractionX, yPosition + 5);
+
+                yPosition += 25;
+
+                // Solution 1
+                doc.text("Lösung:", 20, yPosition);
+                yPosition += 15;
+
+                // Format solution as fraction
+                let reNum = re_str.replace(/\\textnormal{i}/g, "i").replace(/\\frac{/g, "").replace(/}{/g, "/").replace(/}/g, "");
+                let reDen = "1";
+                let imNum = im_str.replace(/\\textnormal{i}/g, "i").replace(/\\frac{/g, "").replace(/}{/g, "/").replace(/}/g, "");
+                let imDen = "1";
+
+                if (reNum.includes('/')) {
+                    [reNum, reDen] = reNum.split('/');
+                }
+
+                if (imNum.includes('/')) {
+                    [imNum, imDen] = imNum.split('/');
+                }
+
+                // Draw z = first
+                doc.text("z = ", 35, yPosition);
+
+                // Draw the real part fraction
+                const reNumeratorWidth = doc.getTextWidth(reNum);
+                const reDenominatorWidth = doc.getTextWidth(reDen);
+                const reMaxWidth = Math.max(reNumeratorWidth, reDenominatorWidth);
+                
+                // Draw real part numerator
+                doc.text(reNum, 45, yPosition - 3);
+                
+                // Draw real part fraction line if denominator is not 1
+                if (reDen !== "1") {
+                    doc.line(45, yPosition, 45 + reMaxWidth, yPosition);
+                    doc.text(reDen, 45, yPosition + 5);
+                }
+
+                // Draw the imaginary part fraction
+                const imNumeratorWidth = doc.getTextWidth(imNum.replace('-', ''));
+                const imDenominatorWidth = doc.getTextWidth(imDen);
+                const imMaxWidth = Math.max(imNumeratorWidth, imDenominatorWidth);
+                const imStartX = 45 + reMaxWidth + 15;
+
+                // Add plus/minus sign
+                doc.text(imNum.startsWith('-') ? ' - ' : ' + ', imStartX - 10, yPosition);
+                
+                // Draw imaginary part numerator (without minus sign if negative)
+                doc.text(imNum.replace('-', ''), imStartX, yPosition - 3);
+                
+                // Draw imaginary part fraction line if denominator is not 1
+                if (imDen !== "1") {
+                    doc.line(imStartX, yPosition, imStartX + imMaxWidth, yPosition);
+                    doc.text(imDen, imStartX, yPosition + 5);
+                }
+                
+                // Add i
+                doc.text("i", imStartX + imMaxWidth + 5, yPosition);
+
+                yPosition += 30;
+
+                // Task 2
+                doc.text("Aufgabe 2:", 20, yPosition);
+                yPosition += 10;
+                doc.text("Lösen Sie das lineare Gleichungssystem:", 20, yPosition);
+                yPosition += 15;
+
+                function formatMatrixLines(matrix, isMatrixA = false) {
+                    return matrix
+                        .replace(/\\begin{pmatrix}/g, "")
+                        .replace(/\\end{pmatrix}/g, "")
+                        .replace(/\\\\/g, "\n")
+                        .replace(/&/g, "|")
+                        .split("\n")
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0)
+                        .map(line => {
+                            const columns = line.split("|").map(col => col.trim());
+                            // For matrix A, use wider columns and more spacing
+                            const columnWidth = isMatrixA ? 14 : 10; // Increased width for A
+                            const spacing = isMatrixA ? "        " : "  "; // 8 spaces for A, 2 for others
+                            
+                            // Center align numbers in each column
+                            return columns.map(col => {
+                                const num = col.trim();
+                                // Ensure we have enough space for the number
+                                const actualWidth = Math.max(columnWidth, num.length + 2);
+                                const spaces = actualWidth - num.length;
+                                const leftPad = Math.max(0, Math.floor(spaces / 2));
+                                const rightPad = Math.max(0, spaces - leftPad);
+                                return ' '.repeat(leftPad) + num + ' '.repeat(rightPad);
+                            }).join(spacing);
+                        });
+                }
+
+                const matrixLines = formatMatrixLines(A_str_2, true);
+                const vectorLines = formatMatrixLines(b_str_2);
+
+                // Draw matrix A
+                doc.text("A = ", 35, yPosition);
+                yPosition += 7;
+
+                const startY = yPosition - 5;
+                const endY = yPosition + (matrixLines.length * 7);
+                
+                // Matrix content with fixed-width columns
+                matrixLines.forEach((line, index) => {
+                    doc.text(line, 47, yPosition + (index * 7));
+                });
+
+                // Calculate right bracket position based on actual content width
+                const maxLineWidth = Math.max(...matrixLines.map(line => doc.getTextWidth(line)));
+                const rightBracketX = 47 + maxLineWidth + 2; // Reduced padding to 2 points
+
+                // Draw left bracket
+                doc.setLineWidth(0.7);
+                doc.line(43, startY, 45, startY);
+                doc.line(43, startY, 43, endY);
+                doc.line(43, endY, 45, endY);
+
+                // Draw right bracket
+                doc.line(rightBracketX, startY, rightBracketX + 2, startY);
+                doc.line(rightBracketX + 2, startY, rightBracketX + 2, endY);
+                doc.line(rightBracketX, endY, rightBracketX + 2, endY);
+
+                yPosition += (matrixLines.length * 7) + 15;
+
+                // Vector b with same formatting style
+                doc.text("b = ", 35, yPosition);
+                yPosition += 7;
+
+                const vStartY = yPosition - 5;
+                const vEndY = yPosition + (vectorLines.length * 7);
+
+                // Vector content
+                vectorLines.forEach((line, index) => {
+                    doc.text(line, 47, yPosition + (index * 7));
+                });
+
+                // Calculate vector right bracket position
+                const maxVectorWidth = Math.max(...vectorLines.map(line => doc.getTextWidth(line)));
+                const vectorRightX = 47 + maxVectorWidth + 2;
+
+                // Left bracket for vector b
+                doc.line(43, vStartY, 45, vStartY);
+                doc.line(43, vStartY, 43, vEndY);
+                doc.line(43, vEndY, 45, vEndY);
+
+                // Right bracket for vector b
+                doc.line(vectorRightX, vStartY, vectorRightX + 2, vStartY);
+                doc.line(vectorRightX + 2, vStartY, vectorRightX + 2, vEndY);
+                doc.line(vectorRightX, vEndY, vectorRightX + 2, vEndY);
+
+                // Add space after vector b
+                yPosition += (vectorLines.length * 7) + 15;
+
+                // Always start Solution 2 on a new page
+                addFooter(1, 2);
+                doc.addPage();
+                addHeader(2);
+                yPosition = 55;
+
+                // Solution 2
+                doc.text("Lösung:", 20, yPosition);
+                yPosition += 15;
+
+                const x_lines = formatMatrixLines(x_str_2);
+                doc.text("x = ", 35, yPosition);
+                yPosition += 7;
+
+                const xStartY = yPosition - 5;
+                const xEndY = yPosition + (x_lines.length * 7);
+
+                // Left bracket for solution
+                doc.line(43, xStartY, 45, xStartY);
+                doc.line(43, xStartY, 43, xEndY);
+                doc.line(43, xEndY, 45, xEndY);
+
+                // Solution content
+                x_lines.forEach((line, index) => {
+                    const formattedLine = line.replace(/\\textnormal{i}/g, "i");
+                    doc.text(formattedLine, 47, yPosition + (index * 7));
+                });
+
+                // Calculate solution right bracket position
+                const solutionWidth = Math.max(...x_lines.map(line => doc.getTextWidth(line)));
+                const solutionRightX = 47 + solutionWidth + 2;
+
+                // Right bracket for solution
+                doc.line(solutionRightX, xStartY, solutionRightX + 2, xStartY);
+                doc.line(solutionRightX + 2, xStartY, solutionRightX + 2, xEndY);
+                doc.line(solutionRightX, xEndY, solutionRightX + 2, xEndY);
+
+                // Add more space after solution 2
+                yPosition += (x_lines.length * 7) + 30;
+
+                // Check if enough space for Task 3
+                if (yPosition > doc.internal.pageSize.height - 120) {
+                    addFooter(2, 3);
+                    doc.addPage();
+                    addHeader(3);
+                    yPosition = 55;
+                }
+
+                // Task 3
+                doc.text("Aufgabe 3:", 20, yPosition);
+                yPosition += 10;
+                doc.text("Berechnen Sie die Determinante der Matrix:", 20, yPosition);
+                yPosition += 15;
+
+                const matrixA3Lines = formatMatrixLines(A_str_3);
+                doc.text("A = ", 35, yPosition);
+                yPosition += 7;
+
+                const startY3 = yPosition - 5;
+                const endY3 = yPosition + (matrixA3Lines.length * 7);
+
+                // Matrix content with fixed-width columns
+                matrixA3Lines.forEach((line, index) => {
+                    doc.text(line, 47, yPosition + (index * 7));
+                });
+
+                // Calculate right bracket position based on actual content width
+                const maxLineWidth3 = Math.max(...matrixA3Lines.map(line => doc.getTextWidth(line)));
+                const rightBracketX3 = 47 + maxLineWidth3 + 2;
+
+                // Draw left bracket
+                doc.setLineWidth(0.7);
+                doc.line(43, startY3, 45, startY3);
+                doc.line(43, startY3, 43, endY3);
+                doc.line(43, endY3, 45, endY3);
+
+                // Draw right bracket
+                doc.line(rightBracketX3, startY3, rightBracketX3 + 2, startY3);
+                doc.line(rightBracketX3 + 2, startY3, rightBracketX3 + 2, endY3);
+                doc.line(rightBracketX3, endY3, rightBracketX3 + 2, endY3);
+
+                yPosition += (matrixA3Lines.length * 7) + 15;
+
+                doc.text("Lösung:", 20, yPosition);
+                yPosition += 15;
+
+                // Convert det_str to string if it's not already
+                const detValue = det_str.toString();
+                doc.text("det(A) = ", 35, yPosition);
+                doc.text(detValue, 80, yPosition);
+
+                // Add footer to last page
+                addFooter(doc.internal.getNumberOfPages(), doc.internal.getNumberOfPages());
+
+                doc.save(`Aufgabe_IM2.pdf`);
+
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                alert('Ein Fehler ist aufgetreten: ' + error.message);
+            }
+        }
+        
+        async function takeScreenshot() {
+            try {
+                // Wait for MathJax to finish rendering
+                await MathJax.typesetPromise();
+                
+                const element = document.querySelector('#captureArea');
+                
+                // Show yellow highlight
+                element.style.backgroundColor = '#ffeb3b';
+                
+                // Wait a moment to show the highlight
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Use dom-to-image
+                const dataUrl = await domtoimage.toPng(element, {
+                    bgcolor: 'white',
+                    style: {
+                        margin: '0',
+                        padding: '20px'
+                    }
+                });
+                
+                // Reset background color
+                element.style.backgroundColor = 'white';
+                
+                // Try to copy to clipboard
+                try {
+                    const response = await fetch(dataUrl);
+                    const blob = await response.blob();
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            'image/png': blob
+                        })
+                    ]);
+                    alert('Screenshot copied to clipboard!');
+                } catch (err) {
+                    // If clipboard copy fails, download the image
+                    const link = document.createElement('a');
+                    link.download = 'questions-screenshot.png';
+                    link.href = dataUrl;
+                    link.click();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Ein Fehler ist aufgetreten.');
+            }
+        }
+        
+        function displayMatrix(matrix, vector, elementId) {
+            const matrixHtml = `\\begin{bmatrix}
+                ${matrix.map(row => row.join(' & ')).join(' \\\\ ')}
+            \\end{bmatrix}`;
+            
+            const vectorHtml = `\\begin{bmatrix}
+                ${vector.join(' \\\\ ')}
+            \\end{bmatrix}`;
+            
+            const element = document.getElementById(elementId);
+            element.innerHTML = `\\[ ${matrixHtml} \\cdot \\mathbf{x} = ${vectorHtml} \\]`;
+            MathJax.typeset([element]);
+        }
+        
+        init();
+    </script>
+</body>
+</html>

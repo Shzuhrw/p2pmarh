@@ -58,6 +58,11 @@
             padding: 15px;
             border: none;
         }
+        .hint {
+            font-style: italic;
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -78,6 +83,7 @@
                 <strong>Aufgabe 2:</strong> Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
             </div>
             <div id="question2" class="matrix-display matrix-wrapper"></div>
+            <div id="hint2" class="hint"></div>
             <div id="solution2" class="solution-text"></div>
         </div>
     </div>
@@ -220,6 +226,9 @@ problem2 = generate_problem_2(${id})
                 document.getElementById("solution1").innerHTML = `<strong>Lösung:</strong><br>\\[ \\begin{array}{l} ${formattedSolution1} \\end{array} \\]`;
                 
                 document.getElementById("question2").innerHTML = `\\[ A = \\begin{pmatrix} ${matrix2.replace(/\\begin\{pmatrix\}|\\\end\{pmatrix\}/g, '')} \\end{pmatrix} \\]`;
+                
+                // Add hint after the second question
+                document.getElementById("hint2").innerHTML = `Hinweis: Die Matrix A besitzt die Eigenwerte λ = 0 und λ = 2. Die anderen Eigenwerte sind ebenfalls ganzzahlig und reell.`;
                 
                 // Format the solution to display properly
                 const formattedSolution2 = solution2

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer-Review-Lösung</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        input[type="number"] {
+            padding: 10px;
+            width: 120px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .task-text {
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        .solution-text {
+            font-size: 16px;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        .matrix-display {
+            font-size: 18px;
+            margin: 10px 0;
+            padding: 15px;
+        }
+        .matrix-wrapper {
+            margin: 10px 0;
+            padding: 15px;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align: center">Lösungen zur Peer-Review Aufgabe</h2>
+        <label for="studentId">Letzte 3 Ziffern der Matrikelnummer :</label>
+        <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999">
+        <button onclick="generateQuestion()" class="btn">Generieren</button>
+
+        <div id="content-area" style="display: none">
+            <div class="task-text" style="margin-bottom: 15px;">
+                <strong>Aufgabe 1:</strong> Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+            </div>
+            <div id="question1" class="matrix-display matrix-wrapper"></div>
+            <div id="solution1" class="solution-text"></div>
+            
+            <div class="task-text" style="margin-top: 30px; margin-bottom: 15px;">
+                <strong>Aufgabe 2:</strong> Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+            </div>
+            <div id="question2" class="matrix-display matrix-wrapper"></div>
+            <div id="solution2" class="solution-text"></div>
+        </div>
+    </div>
+
+    <script>
+        let pyodide;
+
+        async function init() {
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage("sympy");
+        }
+
+        async function generateQuestion() {
+            const id = document.getElementById("studentId").value;
+            if (!id || id.length !== 3) {
+                alert("Bitte geben Sie genau 3 Ziffern ein.");
+                return;
+            }
+            
+            try {
+                // Use the same code as in Aufgabe.html
+                await pyodide.runPythonAsync(`
+import sympy as sp
+from sympy import Matrix, eye, diag
+import random
+
+def generate_problem_1(seed):
+    random.seed(seed)
+    A = eye(2)
+    A[0, 0] = 0
+    A[0, 1] = random.randint(1, 3)
+    A[1, 0] = -1 * (2 + A[0, 1] + random.randint(1, 4))
+    A[1, 1] = -1 * (A[1, 0] + 2)
+    EW = A.eigenvals()
+    EV = A.eigenvects()
+    A_str = sp.latex(A).replace("matrix", "pmatrix")[6:-7]
+    
+    # Calculate characteristic polynomial
+    poly = sp.latex((-1)*A.charpoly())
+    # Remove all variations of "Domain = Z" from the polynomial
+    poly = poly.replace(", Domain=\\mathbb{Z}", "")
+    poly = poly.replace(", Domain=Z", "")
+    poly = poly.replace(", domain = Z", "")
+    poly = poly.replace(", domain=Z", "")
+    poly = poly.replace("domain = Z", "")
+    poly = poly.replace("Domain = Z", "")
+    poly = poly.replace("PurePoly (", "")
+    poly = poly.replace(", \\lambda", "\\lambda")
+    
+    # Format eigenvalues and eigenvectors for display
+    eigenpairs = []
+    for val, mult, basis in EV:
+        eigval_str = sp.latex(val)
+        eigvec_str = ", ".join([sp.latex(vec) for vec in basis])
+        eigenpairs.append((eigval_str, eigvec_str, mult))
+    
+    eigval_str = ", ".join([f"λ_{i+1} = {pair[0]}" for i, pair in enumerate(eigenpairs)])
+    eigvec_str = ", ".join([f"v_{i+1} = {pair[1]}" for i, pair in enumerate(eigenpairs)])
+    
+    sol = f"Charakteristisches Polynom: p(λ) = {poly}<br>Eigenwerte: {eigval_str}<br>Eigenvektoren: {eigvec_str}"
+    return [A_str, sol]
+
+
+def generate_problem_2(seed):
+    random.seed(seed)
+    L = eye(4)
+    L[1, 0] = random.randint(-2, 1)
+    L[2, 0] = random.randint(-2, 2)
+    L[3, 0] = 1
+    L[3, 1] = random.randint(-2, 4)
+    L[3, 2] = random.randint(-4, 3)
+
+    R = eye(4)
+    R[0, 1] = random.randint(-2, 3)
+    R[0, 2] = 1
+    R[1, 2] = random.randint(-2, 3)
+
+    d = diag(*random.sample(range(-3, 4), 2))
+    D = diag(0, 2, d[0], d[1])
+    V = sp.simplify(L * R)
+    A = sp.simplify(V * D * V.inv())
+    EW = A.eigenvals()
+    EV = A.eigenvects()
+    
+    poly = sp.latex((-1)*A.charpoly())
+    A_str = sp.latex(A).replace("matrix", "pmatrix")[6:-7]
+    
+    # Format eigenvalues and eigenvectors for display
+    eigenpairs = []
+    for val, mult, basis in EV:
+        eigval_str = sp.latex(val)
+        eigvec_str = ", ".join([sp.latex(vec) for vec in basis])
+        eigenpairs.append((eigval_str, eigvec_str, mult))
+    
+    eigval_str = ", ".join([f"λ_{i+1} = {pair[0]}" for i, pair in enumerate(eigenpairs)])
+    eigvec_str = ", ".join([f"v_{i+1} = {pair[1]}" for i, pair in enumerate(eigenpairs)])
+    
+    sol = f"Charakteristisches Polynom: p(λ) = {poly}<br>Eigenwerte: {eigval_str}<br>Eigenvektoren: {eigvec_str}"
+    return [A_str, sol]
+
+# Generate problems
+problem1 = generate_problem_1(${id})
+problem2 = generate_problem_2(${id})
+                `);
+
+                // Get the results directly from the Python execution
+                const [matrix1, solution1] = await pyodide.runPythonAsync('problem1');
+                const [matrix2, solution2] = await pyodide.runPythonAsync('problem2');
+
+                // Display results - fix the matrix display to avoid double brackets
+                document.getElementById("question1").innerHTML = `\\[ A = \\begin{pmatrix} ${matrix1.replace(/\\begin\{pmatrix\}|\\\end\{pmatrix\}/g, '')} \\end{pmatrix} \\]`;
+                
+                // Format the solution to display properly
+                const formattedSolution1 = solution1
+                    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "\\frac{$1}{$2}")
+                    .replace(/\\sqrt\{([^}]+)\}/g, "\\sqrt{$1}")
+                    .replace(/\\left/g, "")
+                    .replace(/\\right/g, "")
+                    .replace(/\[/g, "(")
+                    .replace(/\]/g, ")")
+                    .replace(/<br>/g, "\\\\")
+                    .replace(/Charakteristisches Polynom:/g, "\\text{Charakteristisches Polynom:} \\\\")
+                    .replace(/p\(λ\) =/g, "p(\\lambda) =")
+                    // Remove "domain = Z" and its variations from the output
+                    .replace(/, domain\s*=\s*Z/g, "")
+                    .replace(/, domain\s*=\s*\\mathbb\{Z\}/g, "")
+                    .replace(/domain\s*=\s*Z/g, "")
+                    .replace(/domain\s*=\s*\\mathbb\{Z\}/g, "")
+                    .replace(/Domain\s*=\s*Z/g, "")
+                    .replace(/Domain\s*=\s*\\mathbb\{Z\}/g, "")
+                    .replace(/PurePoly\s*\(/g, "")
+                    .replace(/\)\s*,/g, ",")
+                    .replace(/Eigenwerte:/g, "\\\\[10pt] \\text{Eigenwerte:} \\\\")
+                    .replace(/Eigenvektoren:/g, "\\\\[10pt] \\text{Eigenvektoren:} \\\\")
+                    .replace(/v_\d+\s*=\s*\\begin\{pmatrix\}([^}]+)\\end\{pmatrix\}/g, (match, content) => {
+                        // Format eigenvector to display properly
+                        return `\\begin{pmatrix} ${content} \\end{pmatrix}`;
+                    });
+                
+                document.getElementById("solution1").innerHTML = `<strong>Lösung:</strong><br>\\[ \\begin{array}{l} ${formattedSolution1} \\end{array} \\]`;
+                
+                document.getElementById("question2").innerHTML = `\\[ A = \\begin{pmatrix} ${matrix2.replace(/\\begin\{pmatrix\}|\\\end\{pmatrix\}/g, '')} \\end{pmatrix} \\]`;
+                
+                // Format the solution to display properly
+                const formattedSolution2 = solution2
+                    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "\\frac{$1}{$2}")
+                    .replace(/\\sqrt\{([^}]+)\}/g, "\\sqrt{$1}")
+                    .replace(/\\left/g, "")
+                    .replace(/\\right/g, "")
+                    .replace(/\[/g, "(")
+                    .replace(/\]/g, ")")
+                    .replace(/<br>/g, "\\\\")
+                    .replace(/Charakteristisches Polynom:/g, "\\text{Charakteristisches Polynom:} \\\\")
+                    .replace(/p\(λ\) =/g, "p(\\lambda) =")
+                    // Remove "domain = Z" and its variations from the output
+                    .replace(/, domain\s*=\s*Z/g, "")
+                    .replace(/, domain\s*=\s*\\mathbb\{Z\}/g, "")
+                    .replace(/domain\s*=\s*Z/g, "")
+                    .replace(/domain\s*=\s*\\mathbb\{Z\}/g, "")
+                    .replace(/Domain\s*=\s*Z/g, "")
+                    .replace(/Domain\s*=\s*\\mathbb\{Z\}/g, "")
+                    .replace(/PurePoly\s*\(/g, "")
+                    .replace(/\)\s*,/g, ",")
+                    .replace(/Eigenwerte:/g, "\\\\[10pt] \\text{Eigenwerte:} \\\\")
+                    .replace(/Eigenvektoren:/g, "\\\\[10pt] \\text{Eigenvektoren:} \\\\")
+                    .replace(/v_\d+\s*=\s*\\begin\{pmatrix\}([^}]+)\\end\{pmatrix\}/g, (match, content) => {
+                        // Format eigenvector to display properly
+                        return `\\begin{pmatrix} ${content} \\end{pmatrix}`;
+                    });
+                
+                document.getElementById("solution2").innerHTML = `<strong>Lösung:</strong><br>\\[ \\begin{array}{l} ${formattedSolution2} \\end{array} \\]`;
+
+                // Show content and render math
+                document.getElementById("content-area").style.display = "block";
+                MathJax.typeset();
+                
+            } catch (error) {
+                console.error("Error generating questions:", error);
+                alert("Fehler beim Generieren der Aufgaben. Bitte versuchen Sie es erneut.");
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

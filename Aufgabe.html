@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer-Review-Aufgabe
+    </title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        input[type="number"] {
+            padding: 10px;
+            width: 120px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .task-text {
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        .capture-area {
+            margin-top: 20px;
+        }
+        .matrix-display {
+            font-size: 18px;
+            margin: 10px 0;
+            padding: 15px;
+        }
+        .matrix-wrapper {
+            margin: 10px 0;
+            padding: 15px;
+            border: none;
+        }
+        .pdf-math {
+            font-size: 28px !important;
+            text-align: center;
+            margin: 40px 0;
+            line-height: 2.5;
+            background: white;
+        }
+        .pdf-math .mjx-chtml {
+            font-size: 180% !important;
+            margin: 30px auto !important;
+            display: block !important;
+        }
+        .pdf-math .mjx-math {
+            text-align: center !important;
+            display: block !important;
+            margin: 1em 0 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align: center">Peer-Review-Aufgabe</h2>
+        <label for="studentId">Letzte 3 Ziffern der Matrikelnummer :</label>
+        <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999">
+        <button onclick="generateQuestion()" class="btn">Generieren</button>
+
+        <div id="captureArea" class="capture-area" style="display: none">
+            <div class="task-text" style="margin-bottom: 15px;">
+                <strong>Aufgabe 1:</strong> Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+            </div>
+            <div id="question1" class="matrix-display matrix-wrapper" data-original></div>
+            <div id="solution1" class="task-text" style="display: none;"></div>
+            
+            <div class="task-text" style="margin-top: 30px; margin-bottom: 15px;">
+                <strong>Aufgabe 2:</strong> Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+            </div>
+            <div id="question2" class="matrix-display matrix-wrapper" data-original></div>
+            <div id="solution2" class="task-text" style="display: none;"></div>
+        </div>
+
+        <button id="screenshotBtn" class="btn" style="display:none" onclick="takeScreenshot()">Screenshot erstellen</button>
+    </div>
+
+    <script>
+        let pyodide;
+
+        async function init() {
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage("sympy");
+            await pyodide.runPythonAsync(`
+import sympy as sp
+from sympy import Matrix, eye, diag
+import random
+
+def generate_problem_1(seed):
+    random.seed(seed)
+    A = eye(2)
+    A[0, 0] = 0
+    A[0, 1] = random.randint(1, 3)
+    A[1, 0] = -1 * (2 + A[0, 1] + random.randint(1, 4))
+    A[1, 1] = -1 * (A[1, 0] + 2)
+    EW = A.eigenvals()
+    EV = A.eigenvects()
+    A_str = sp.latex(A).replace("matrix", "pmatrix")[6:-7]
+    
+    # Format eigenvalues and eigenvectors for display
+    eigenpairs = []
+    for val, mult, basis in EV:
+        eigval_str = sp.latex(val)
+        eigvec_str = ", ".join([sp.latex(vec) for vec in basis])
+        eigenpairs.append((eigval_str, eigvec_str, mult))
+    
+    eigval_str = ", ".join([f"$\\lambda_{i+1} = {pair[0]}$" for i, pair in enumerate(eigenpairs)])
+    eigvec_str = ", ".join([f"$v_{i+1} = {pair[1]}$" for i, pair in enumerate(eigenpairs)])
+    
+    sol = f"Eigenwerte: {eigval_str}; Eigenvektoren: {eigvec_str}"
+    return [A_str, sol]
+
+
+def generate_problem_2(seed):
+    random.seed(seed)
+    L = eye(4)
+    L[1, 0] = random.randint(-2, 1)
+    L[2, 0] = random.randint(-2, 2)
+    L[3, 0] = 1
+    L[3, 1] = random.randint(-2, 4)
+    L[3, 2] = random.randint(-4, 3)
+
+    R = eye(4)
+    R[0, 1] = random.randint(-2, 3)
+    R[0, 2] = 1
+    R[1, 2] = random.randint(-2, 3)
+
+    d = diag(*random.sample(range(-3, 4), 2))
+    D = diag(0, 2, d[0], d[1])
+    V = sp.simplify(L * R)
+    A = sp.simplify(V * D * V.inv())
+    EW = A.eigenvals()
+    EV = A.eigenvects()
+    
+    poly = sp.latex((-1)*A.charpoly())
+    A_str = sp.latex(A).replace("matrix", "pmatrix")[6:-7]
+    
+    # Format eigenvalues and eigenvectors for display
+    eigenpairs = []
+    for val, mult, basis in EV:
+        eigval_str = sp.latex(val)
+        eigvec_str = ", ".join([sp.latex(vec) for vec in basis])
+        eigenpairs.append((eigval_str, eigvec_str, mult))
+    
+    eigval_str = ", ".join([f"$\\lambda_{i+1} = {pair[0]}$" for i, pair in enumerate(eigenpairs)])
+    eigvec_str = ", ".join([f"$v_{i+1} = {pair[1]}$" for i, pair in enumerate(eigenpairs)])
+    
+    sol = f"Charakteristisches Polynom: $p(\\lambda) = {poly}$; Eigenwerte: {eigval_str}; Eigenvektoren: {eigvec_str}"
+    return [A_str, sol]
+            `);
+        }
+
+        async function generateQuestion() {
+            const id = document.getElementById("studentId").value;
+            if (!id || id.length !== 3) {
+                alert("Bitte geben Sie genau 3 Ziffern ein.");
+                return;
+            }
+            
+            try {
+                const [A1, L1] = (await pyodide.runPythonAsync(`generate_problem_1(${id})`)).toJs();
+                const [A2, L2] = (await pyodide.runPythonAsync(`generate_problem_2(${id})`)).toJs();
+
+                document.getElementById("question1").setAttribute('data-original', A1);
+                document.getElementById("question1").innerHTML = `\\[ \\symbf{A} = ${A1} \\]`;
+                document.getElementById("question2").setAttribute('data-original', A2);
+                document.getElementById("question2").innerHTML = `\\[ \\symbf{A} = ${A2} \\]`;
+                document.getElementById("solution1").innerHTML = `${L1}`;
+                document.getElementById("solution2").innerHTML = `${L2}`;
+
+                MathJax.typeset();
+                document.getElementById("captureArea").style.display = "block";
+                document.getElementById("screenshotBtn").style.display = "inline-block";
+            } catch (error) {
+                console.error("Error generating questions:", error);
+                alert("Fehler beim Generieren der Aufgaben. Bitte versuchen Sie es erneut.");
+            }
+        }
+
+        async function takeScreenshot() {
+            await MathJax.typesetPromise();
+            const element = document.getElementById("captureArea");
+            
+            // Change background to yellow to indicate screenshot is being taken
+            const originalColor = element.style.backgroundColor;
+            element.style.backgroundColor = "#ffeb3b";
+            
+            // Wait to ensure color change is applied
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Change background back to white before capturing
+            element.style.backgroundColor = "white";
+            
+            // Wait to ensure white background is applied
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Capture the image after ensuring white background
+            const dataUrl = await domtoimage.toPng(element);
+
+            try {
+                // Create link to download the image
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `Eigenwerte_Aufgabe_${document.getElementById("studentId").value}.png`;
+                
+                // Download image automatically
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error("Error saving screenshot:", error);
+                alert("Fehler beim Speichern des Screenshots. Bitte versuchen Sie es erneut.");
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

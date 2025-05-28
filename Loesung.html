@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Peer-Review-Lösung</title>
+    <title>Mathematische Aufgaben</title>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
@@ -59,6 +59,7 @@
             font-size: 18px;
             margin-top: 24px;
             color: #222;
+            line-height: 1.6;
         }
         .solution-text {
             font-size: 16px;
@@ -109,30 +110,67 @@
             overflow-y: hidden;
             max-width: 100%;
         }
+        .section {
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        .math-step {
+            margin: 15px 0;
+        }
+        .step-header {
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #2e7d32;
+        }
+        .question-number {
+            font-weight: bold;
+            font-size: 20px;
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 style="text-align: center">Lösungen zur Peer-Review Aufgabe</h2>
+        <h2 style="text-align: center">Mathematische Aufgaben</h2>
         <div class="input-group">
             <label for="studentId">Letzte 3 Ziffern der Matrikelnummer:</label>
             <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999">
-            <button onclick="generateQuestion()" class="btn">Generieren</button>
+            <button onclick="generateQuestions()" class="btn">Generieren</button>
         </div>
 
         <div id="content-area" style="display: none">
-            <div class="task-text" style="margin-bottom: 15px;">
-                <strong>Aufgabe 1:</strong> Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+            <div class="section">
+                <div class="question-number">Aufgabe 1</div>
+                <div class="task-text" style="margin-bottom: 15px;">
+                    Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+                </div>
+                <div id="question1" class="matrix-display matrix-wrapper"></div>
+                <div id="solution1" class="solution-text"></div>
             </div>
-            <div id="question1" class="matrix-display matrix-wrapper"></div>
-            <div id="solution1" class="solution-text"></div>
             
-            <div class="task-text" style="margin-top: 30px; margin-bottom: 15px;">
-                <strong>Aufgabe 2:</strong> Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+            <div class="section">
+                <div class="question-number">Aufgabe 2</div>
+                <div class="task-text" style="margin-bottom: 15px;">
+                    Berechnen Sie die Eigenwerte und Eigenvektoren der Matrix:
+                </div>
+                <div id="question2" class="matrix-display matrix-wrapper"></div>
+                <div id="hint2" class="hint"></div>
+                <div id="solution2" class="solution-text"></div>
             </div>
-            <div id="question2" class="matrix-display matrix-wrapper"></div>
-            <div id="hint2" class="hint"></div>
-            <div id="solution2" class="solution-text"></div>
+            
+            <div class="section">
+                <div class="question-number">Aufgabe 3</div>
+                <div class="task-text">
+                    <div id="question3"></div>
+                </div>
+                <div id="solution3" class="solution-text"></div>
+            </div>
         </div>
     </div>
 
@@ -140,11 +178,17 @@
         let pyodide;
 
         async function init() {
-            pyodide = await loadPyodide();
-            await pyodide.loadPackage("sympy");
+            try {
+                pyodide = await loadPyodide();
+                await pyodide.loadPackage("sympy");
+                console.log("Pyodide loaded successfully");
+            } catch (error) {
+                console.error("Error initializing Pyodide:", error);
+                alert("Fehler bei der Initialisierung. Bitte Seite neu laden.");
+            }
         }
 
-        async function generateQuestion() {
+        async function generateQuestions() {
             const id = document.getElementById("studentId").value;
             if (!id || id.length !== 3) {
                 alert("Bitte geben Sie genau 3 Ziffern ein.");
@@ -152,9 +196,63 @@
             }
             
             try {
-                await pyodide.runPythonAsync(`
+                // Initialize Python functions for all problems
+                await initializePythonFunctions();
+                
+                // Generate eigenvalue problems (Problem 1 & 2)
+                const [matrix1, solution1] = await pyodide.runPythonAsync('generate_problem_1(' + id + ')');
+                const [matrix2, solution2] = await pyodide.runPythonAsync('generate_problem_2(' + id + ')');
+                
+                // Generate extrema problem (Problem 3)
+                const [question3, solution3] = await pyodide.runPythonAsync('generate_extrema_problem(' + id + ')');
+                
+                // Display eigenvalue problems
+                document.getElementById("question1").innerHTML = `\\[ A = \\begin{pmatrix} ${matrix1.replace(/\\begin\{pmatrix\}|\\\end\{pmatrix\}/g, '')} \\end{pmatrix} \\]`;
+                
+                const formattedSolution1 = solution1
+                    .replace(/\\left/g, "")
+                    .replace(/\\right/g, "")
+                    .replace(/<br>/g, "\\\\")
+                    .replace(/p\(λ\) =/g, "\\text{Charakteristisches Polynom:}\\\\p(\\lambda) =")
+                    .replace(/Eigenwerte:/g, "\\\\[10pt] \\text{Eigenwerte:} \\\\")
+                    .replace(/Eigenvektoren:/g, "\\\\[10pt] \\text{Eigenvektoren:} \\\\");
+                
+                document.getElementById("solution1").innerHTML = `<strong>Lösung:</strong><br>\\[ \\begin{array}{l} ${formattedSolution1} \\end{array} \\]`;
+
+                document.getElementById("question2").innerHTML = `\\[ A = \\begin{pmatrix} ${matrix2.replace(/\\begin\{pmatrix\}|\\\end\{pmatrix\}/g, '')} \\end{pmatrix} \\]`;
+                
+                document.getElementById("hint2").innerHTML = `<strong>Hinweis:</strong> Die Matrix A besitzt die Eigenwerte λ = 0 und λ = 2. Die anderen Eigenwerte sind ebenfalls ganzzahlig und reell.`;
+                
+                const formattedSolution2 = solution2
+                    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "\\frac{$1}{$2}")
+                    .replace(/\\sqrt\{([^}]+)\}/g, "\\sqrt{$1}")
+                    .replace(/\\left/g, "")
+                    .replace(/\\right/g, "")
+                    .replace(/<br>/g, "\\\\")
+                    .replace(/p\(λ\) =/g, "\\text{Charakteristisches Polynom:}\\\\p(\\lambda) =")
+                    .replace(/Eigenwerte:/g, "\\\\[10pt] \\text{Eigenwerte:} \\\\")
+                    .replace(/Eigenvektoren:/g, "\\\\[10pt] \\text{Eigenvektoren:} \\\\");
+                
+                document.getElementById("solution2").innerHTML = `<strong>Lösung:</strong><br>\\[ \\begin{array}{l} ${formattedSolution2} \\end{array} \\]`;
+                
+                // Display extrema problem
+                document.getElementById("question3").innerHTML = question3;
+                document.getElementById("solution3").innerHTML = "<strong>Lösung:</strong><br>" + solution3.replace(/\\n/g, '<div class="math-step">');
+                
+                document.getElementById("content-area").style.display = "block";
+                MathJax.typeset();
+                
+            } catch (error) {
+                console.error("Error generating questions:", error);
+                alert("Fehler beim Generieren der Aufgaben. Bitte versuchen Sie es erneut.");
+            }
+        }
+        
+        async function initializePythonFunctions() {
+            // Python code for eigenvalue problems (from first file)
+            await pyodide.runPythonAsync(`
 import sympy as sp
-from sympy import Matrix, eye, diag
+from sympy import Matrix, eye, diag, Rational
 import random
 import re
 
@@ -287,50 +385,67 @@ def generate_problem_2(seed):
     sol = f"p(λ) = {poly}<br>Eigenwerte: {eigval_str}<br>Eigenvektoren: {eigvec_str}"
     return [A_str, sol]
 
-# Generate problems
-problem1 = generate_problem_1(${id})
-problem2 = generate_problem_2(${id})
-                `);
+def generate_extrema_problem(seed):
+    random.seed(seed)
 
-                const [matrix1, solution1] = await pyodide.runPythonAsync('problem1');
-                const [matrix2, solution2] = await pyodide.runPythonAsync('problem2');
-
-                document.getElementById("question1").innerHTML = `\\[ A = \\begin{pmatrix} ${matrix1.replace(/\\begin\{pmatrix\}|\\\end\{pmatrix\}/g, '')} \\end{pmatrix} \\]`;
-                
-                const formattedSolution1 = solution1
-                    .replace(/\\left/g, "")
-                    .replace(/\\right/g, "")
-                    .replace(/<br>/g, "\\\\")
-                    .replace(/p\(λ\) =/g, "\\text{Charakteristisches Polynom:}\\\\p(\\lambda) =")
-                    .replace(/Eigenwerte:/g, "\\\\[10pt] \\text{Eigenwerte:} \\\\")
-                    .replace(/Eigenvektoren:/g, "\\\\[10pt] \\text{Eigenvektoren:} \\\\");
-                
-                document.getElementById("solution1").innerHTML = `<strong>Lösung:</strong><br>\\[ \\begin{array}{l} ${formattedSolution1} \\end{array} \\]`;
-
-                document.getElementById("question2").innerHTML = `\\[ A = \\begin{pmatrix} ${matrix2.replace(/\\begin\{pmatrix\}|\\\end\{pmatrix\}/g, '')} \\end{pmatrix} \\]`;
-                
-                document.getElementById("hint2").innerHTML = `<strong>Hinweis:</strong> Die Matrix A besitzt die Eigenwerte λ = 0 und λ = 2. Die anderen Eigenwerte sind ebenfalls ganzzahlig und reell.`;
-                
-                const formattedSolution2 = solution2
-                    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "\\frac{$1}{$2}")
-                    .replace(/\\sqrt\{([^}]+)\}/g, "\\sqrt{$1}")
-                    .replace(/\\left/g, "")
-                    .replace(/\\right/g, "")
-                    .replace(/<br>/g, "\\\\")
-                    .replace(/p\(λ\) =/g, "\\text{Charakteristisches Polynom:}\\\\p(\\lambda) =")
-                    .replace(/Eigenwerte:/g, "\\\\[10pt] \\text{Eigenwerte:} \\\\")
-                    .replace(/Eigenvektoren:/g, "\\\\[10pt] \\text{Eigenvektoren:} \\\\");
-                
-                document.getElementById("solution2").innerHTML = `<strong>Lösung:</strong><br>\\[ \\begin{array}{l} ${formattedSolution2} \\end{array} \\]`;
-
-                document.getElementById("content-area").style.display = "block";
-                MathJax.typeset();
-                
-            } catch (error) {
-                console.error("Error generating questions:", error);
-                alert("Fehler beim Generieren der Aufgaben. Bitte versuchen Sie es erneut.");
-            }
+    a = Matrix(random.choices(range(-9, 10), k=3))
+    
+    # Ensure at least one element is positive (1-10)
+    a[random.randint(0, 2)] = random.randint(1, 10)
+    
+    # Get the constraint constant c
+    c = random.randint(1, 6)
+    
+    # Calculate the solution point
+    x = Rational(c, a.dot(a)) * a
+    
+    # Format the vectors for display
+    a_vec = sp.latex((a[0], a[1], a[2])).replace('\\\\left', '').replace('\\\\right', '')
+    x_vec = sp.latex((x[0], x[1], x[2])).replace('\\\\left', '').replace('\\\\right', '')
+    
+    question = f"""
+    Bestimmen Sie alle Extremstellen der Funktion f: ℝ³ → ℝ, definiert durch
+    \\\\[
+        f(\\\\mathbf{{x}}) = \\\\|\\\\mathbf{{x}}\\\\|^2
+    \\\\]
+    unter der Nebenbedingung
+    \\\\[
+        {a_vec} \\\\cdot \\\\mathbf{{x}} = {c}
+    \\\\]
+    """
+    
+    solution = [
+        '<div class="step-header">Schritt 1: Lagrange-Funktion</div>',
+        f'\\\\[L(\\\\mathbf{{x}}, \\\\lambda) = \\\\|\\\\mathbf{{x}}\\\\|^2 + \\\\lambda({a_vec} \\\\cdot \\\\mathbf{{x}} - {c})\\\\]',
+        
+        '<div class="step-header">Schritt 2: Partielle Ableitungen</div>',
+        '\\\\[\\\\frac{\\\\partial L}{\\\\partial \\\\mathbf{x}} = 2\\\\mathbf{x} + \\\\lambda ' + a_vec + ' = \\\\mathbf{0}\\\\]',
+        f'\\\\[\\\\frac{{\\\\partial L}}{{\\\\partial \\\\lambda}} = {a_vec} \\\\cdot \\\\mathbf{{x}} - {c} = 0\\\\]',
+        
+        '<div class="step-header">Schritt 3: Lösung des Gleichungssystems</div>',
+        f'Aus der ersten Gleichung folgt:',
+        f'\\\\[\\\\mathbf{{x}} = -\\\\frac{{\\\\lambda}}{{2}} {a_vec}\\\\]',
+        f'Einsetzen in die zweite Gleichung:',
+        f'\\\\[{a_vec} \\\\cdot (-\\\\frac{{\\\\lambda}}{{2}} {a_vec}) = {c}\\\\]',
+        f'\\\\[-\\\\frac{{\\\\lambda}}{{2}} \\\\|{a_vec}\\\\|^2 = {c}\\\\]',
+        f'\\\\[\\\\lambda = -\\\\frac{{2{c}}}{{\\\\|{a_vec}\\\\|^2}}\\\\]',
+        
+        '<div class="step-header">Schritt 4: Ergebnis</div>',
+        f'\\\\[\\\\mathbf{{x}} = {x_vec}\\\\]',
+        
+        '<div class="step-header">Schritt 5: Begründung</div>',
+        'Da die Funktion den quadratischen Abstand zum Ursprung misst und die Nebenbedingung eine Ebene definiert, ist der gefundene Punkt die Minimalstelle.'
+    ]
+    
+    return [question, "\\\\n".join(solution)]
+            `);
         }
+        
+        document.getElementById("studentId").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                generateQuestions();
+            }
+        });
 
         init();
     </script>

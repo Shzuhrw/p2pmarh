@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Peer-Review-Aufgabe
-    </title>
+    <title>Peer-Review-Aufgabe</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
@@ -86,7 +85,7 @@
 <body>
     <div class="container">
         <h2 style="text-align: center">Peer-Review-Aufgabe</h2>
-        <label for="studentId">Letzte 3 Ziffern der Matrikelnummer :</label>
+        <label for="studentId">Letzte 3 Ziffern der Matrikelnummer:</label>
         <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999">
         <button onclick="generateQuestion()" class="btn">Generieren</button>
 
@@ -103,6 +102,12 @@
             <div id="question2" class="matrix-display matrix-wrapper" data-original></div>
             <div id="hint2" class="hint"></div>
             <div id="solution2" class="task-text" style="display: none;"></div>
+            
+            <div class="task-text" style="margin-top: 30px; margin-bottom: 15px;">
+                <strong>Aufgabe 3:</strong> Bestimmen Sie alle Extremstellen der Funktion 𝑓 ∶ ℝ³ → ℝ, definiert durch
+            </div>
+            <div id="question3" class="matrix-display matrix-wrapper"></div>
+            <div id="solution3" class="task-text" style="display: none;"></div>
         </div>
 
         <button id="screenshotBtn" class="btn" style="display:none" onclick="takeScreenshot()">Screenshot erstellen</button>
@@ -116,7 +121,7 @@
             await pyodide.loadPackage("sympy");
             await pyodide.runPythonAsync(`
 import sympy as sp
-from sympy import Matrix, eye, diag
+from sympy import Matrix, eye, diag, Rational
 import random
 
 def generate_problem_1(seed):
@@ -130,7 +135,6 @@ def generate_problem_1(seed):
     EV = A.eigenvects()
     A_str = sp.latex(A).replace("matrix", "pmatrix")[6:-7]
     
-    # Format eigenvalues and eigenvectors for display
     eigenpairs = []
     for val, mult, basis in EV:
         eigval_str = sp.latex(val)
@@ -142,7 +146,6 @@ def generate_problem_1(seed):
     
     sol = f"Eigenwerte: {eigval_str}; Eigenvektoren: {eigvec_str}"
     return [A_str, sol]
-
 
 def generate_problem_2(seed):
     random.seed(seed)
@@ -168,7 +171,6 @@ def generate_problem_2(seed):
     poly = sp.latex((-1)*A.charpoly())
     A_str = sp.latex(A).replace("matrix", "pmatrix")[6:-7]
     
-    # Format eigenvalues and eigenvectors for display
     eigenpairs = []
     for val, mult, basis in EV:
         eigval_str = sp.latex(val)
@@ -180,6 +182,33 @@ def generate_problem_2(seed):
     
     sol = f"Charakteristisches Polynom: $p(\\lambda) = {poly}$; Eigenwerte: {eigval_str}; Eigenvektoren: {eigvec_str}"
     return [A_str, sol]
+
+def generate_problem_3(seed):
+    random.seed(seed)
+    a = Matrix(random.choices(range(-9, 10), k=3))
+    a[random.randint(0, 2)] = random.randint(1, 10)
+    c = random.randint(1, 6)
+    x = Rational(c, a.dot(a)) * a
+    
+    a_vec = sp.latex((a[0], a[1], a[2])).replace('\\\\left', '').replace('\\\\right', '')
+    x_vec = sp.latex((x[0], x[1], x[2])).replace('\\\\left', '').replace('\\\\right', '')
+    
+    problem = f"""
+    <div style="line-height: 1.7;">
+    \\[
+    f(\\mathbf{{x}}) = \\|\\mathbf{{x}}\\|^2
+    \\]
+    unter der Nebenbedingung
+    \\[
+    {a_vec}\\cdot \\mathbf{{x}} = {c}.
+    \\]
+    Argumentieren Sie anschaulich, warum es sich bei dem erhaltenen Punkt um die Minimalstelle handelt.
+    </div>
+    """
+    
+    solution = f"Die Extremstelle ist $\\mathbf{{x}} = {x_vec}$. Dies ist eine Minimalstelle, da die Funktion $f(\\mathbf{{x}}) = \\|\\mathbf{{x}}\\|^2$ den quadratischen Abstand vom Ursprung misst, und die Nebenbedingung eine Ebene definiert. Der Punkt mit dem minimalen Abstand vom Ursprung auf dieser Ebene ist die Projektion des Ursprungs auf die Ebene, welche parallel zum Normalenvektor $\\mathbf{{a}} = {a_vec}$ der Ebene verläuft."
+    
+    return [problem, solution]
             `);
         }
 
@@ -193,6 +222,7 @@ def generate_problem_2(seed):
             try {
                 const [A1, L1] = (await pyodide.runPythonAsync(`generate_problem_1(${id})`)).toJs();
                 const [A2, L2] = (await pyodide.runPythonAsync(`generate_problem_2(${id})`)).toJs();
+                const [problem3, solution3] = (await pyodide.runPythonAsync(`generate_problem_3(${id})`)).toJs();
 
                 document.getElementById("question1").setAttribute('data-original', A1);
                 document.getElementById("question1").innerHTML = `\\[ \\symbf{A} = ${A1} \\]`;
@@ -201,6 +231,9 @@ def generate_problem_2(seed):
                 document.getElementById("solution1").innerHTML = `${L1}`;
                 document.getElementById("solution2").innerHTML = `${L2}`;
                 document.getElementById("hint2").innerHTML = `Hinweis: Die Matrix A besitzt die Eigenwerte λ = 0 und λ = 2. Die anderen Eigenwerte sind ebenfalls ganzzahlig und reell.`;
+                
+                document.getElementById("question3").innerHTML = problem3;
+                document.getElementById("solution3").innerHTML = solution3;
 
                 MathJax.typeset();
                 document.getElementById("captureArea").style.display = "block";
@@ -215,29 +248,18 @@ def generate_problem_2(seed):
             await MathJax.typesetPromise();
             const element = document.getElementById("captureArea");
             
-            // Change background to yellow to indicate screenshot is being taken
             const originalColor = element.style.backgroundColor;
             element.style.backgroundColor = "#ffeb3b";
-            
-            // Wait to ensure color change is applied
             await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Change background back to white before capturing
             element.style.backgroundColor = "white";
-            
-            // Wait to ensure white background is applied
             await new Promise(resolve => setTimeout(resolve, 300));
             
-            // Capture the image after ensuring white background
             const dataUrl = await domtoimage.toPng(element);
 
             try {
-                // Create link to download the image
                 const link = document.createElement('a');
                 link.href = dataUrl;
                 link.download = `Eigenwerte_Aufgabe_${document.getElementById("studentId").value}.png`;
-                
-                // Download image automatically
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);

@@ -1,0 +1,164 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer-Review-Aufgabe</title>
+    <script>
+      window.MathJax = {
+        tex: {inlineMath: [['\\(','\\)'], ['$', '$']], displayMath: [['\\[','\\]']]},
+        svg: {fontCache: 'global'}
+      };
+    </script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; background-color: white;
+            border-radius: 10px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+        .btn { background-color: #4CAF50; color: white; border: none; padding: 10px 20px;
+            border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn.secondary { background-color: #607D8B; }
+        input[type="number"] { padding: 10px; width: 120px; border: 1px solid #ddd; border-radius: 4px; }
+        .task-text { font-size: 18px; margin-top: 20px; }
+        .capture-area { margin-top: 20px; }
+        .matrix-display { font-size: 18px; margin: 10px 0; padding: 15px; }
+        .matrix-wrapper { margin: 10px 0; padding: 15px; border: none; }
+        .hint { font-style: italic; margin-top: 10px; margin-bottom: 15px; }
+        .footer { margin-top: 30px; text-align: center; }
+        .screenshot-note { font-size: 12px; color: #666; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align: center">Peer-Review-Aufgabe</h2>
+        <label for="studentId">Letzte 3 Ziffern der Matrikelnummer:</label>
+        <input type="number" id="studentId" placeholder="z.B. 123" min="0" max="999">
+        <button onclick="generateQuestion()" class="btn">Generieren</button>
+      
+
+        <div id="captureArea" class="capture-area" style="display: none">
+            <div class="task-text" style="margin-bottom: 15px;">
+                <strong>Aufgabe 1:</strong> Lösen Sie das lineare Gleichungssystem \( A\,\mathbf{x} = \mathbf{b} \).
+            </div>
+            <div id="question1" class="matrix-display matrix-wrapper" data-original></div>
+            <div id="hint1" class="hint"></div>
+            <div id="solution1" class="task-text" style="display: none;"></div>
+
+            <div class="task-text" style="margin-top: 30px; margin-bottom: 15px;">
+                <strong>Aufgabe 2:</strong> Der Umfang eines Rechtecks beträgt \(U\) cm, der Flächeninhalt \(A\) m\(^2\). Bestimmen Sie die Seitenlängen. Geben Sie das Ergebnis mit vier Nachkommastellen an.
+            </div>
+            <div id="question2" class="matrix-display matrix-wrapper" data-original></div>
+            <div id="solution2" class="task-text" style="display: none;"></div>
+
+        </div>
+
+        <div class="footer">
+            <button id="screenshotBtn" class="btn" style="display:none" onclick="takeScreenshot()">Screenshot erstellen</button>
+            <div class="screenshot-note">Bitte erstellen Sie einen Screenshot und laden Sie ihn im Moodle hoch.</div>
+        </div>
+    </div>
+
+    <script>
+        let pyodide;
+        let solutionsVisible = false;
+
+        async function init() {
+            pyodide = await loadPyodide();
+            await pyodide.loadPackage("sympy");
+            await pyodide.runPythonAsync(`
+import sympy as sp
+from sympy.matrices import Matrix, eye
+import random, math
+
+def generate_task1(seed):
+    random.seed(seed)
+    L = eye(4)
+    L[2,0] = random.randint(-9, 9)
+    L[2,1] = random.randint(-9, 9)
+    L[3,1] = random.randint(-9, 9)
+    L[3,2] = random.randint(-9, 9)
+    vals = random.choices(list(range(1,12)), k=4)
+    D = sp.diag(*vals)
+    x = Matrix(random.choices(list(range(-5,5)), k=4))
+    A = (L * D * L.T)
+    b = A * x
+    A_str = sp.latex(A).replace("matrix", "pmatrix")[6:-7]
+    b_str = sp.latex(b).replace("matrix", "pmatrix")[6:-7]
+    x_sol = ',\\,'.join([sp.latex(x[i]) for i in range(4)])
+    return [A_str, b_str, x_sol]
+
+def generate_task2(seed):
+    random.seed(seed)
+    U_m = round(random.uniform(2.10, 6.35), 2)
+    M = 0.95 * U_m**2/16
+    A_m2 = round(random.uniform(0, M), 2)
+    a = round(U_m/4 + math.sqrt(0.0625 * U_m**2 - A_m2), 4)
+    b = round(U_m/4 - math.sqrt(0.0625 * U_m**2 - A_m2), 4)
+    U_cm = int(math.floor(100 * U_m))
+    return [U_cm, A_m2, a, b]
+
+def generate_task3():
+    expr_q = r"\\left(\\frac{a^3 b^5 + a}{a}\\right)^2"
+    expr_s = r"a^4 b^{10} + 2 a^2 b^5 + 1"
+    return [expr_q, expr_s]
+            `);
+        }
+
+        function toggleSolutions(){
+            solutionsVisible = !solutionsVisible;
+            
+            document.getElementById("toggleBtn").innerText = solutionsVisible ? "Lösungen ausblenden" : "Lösungen anzeigen";
+            MathJax.typeset();
+        }
+
+        async function generateQuestion() {
+            const id = document.getElementById("studentId").value;
+            if (!id || id.length !== 3) {
+                alert("Bitte geben Sie genau 3 Ziffern ein.");
+                return;
+            }
+            try {
+                const [A_str, b_str, x_sol] = (await pyodide.runPythonAsync(`generate_task1(${id})`)).toJs();
+                const [U_cm, A_m2, a, b] = (await pyodide.runPythonAsync(`generate_task2(${id})`)).toJs();
+document.getElementById("question1").innerHTML = `\\[ A = ${A_str}, \\quad \\mathbf{b} = ${b_str} \\]`;
+                document.getElementById("hint1").innerHTML = `Hinweis: Die Lösung ist ganzzahlig.`;
+               
+
+                document.getElementById("question2").innerHTML = `Gegeben: \\( U = ${U_cm}\\,\\text{cm} \\), \\( A = ${A_m2}\\,\\text{m}^2 \\).`;
+MathJax.typeset();
+                document.getElementById("captureArea").style.display = "block";
+                document.getElementById("screenshotBtn").style.display = "inline-block";
+          
+            } catch (error) {
+                console.error("Error generating questions:", error);
+                alert("Fehler beim Generieren der Aufgaben. Bitte versuchen Sie es erneut.");
+            }
+        }
+
+        async function takeScreenshot() {
+            await MathJax.typesetPromise();
+            const element = document.getElementById("captureArea");
+            const dataUrl = await domtoimage.toPng(element);
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `Mathe_Aufgaben_${document.getElementById("studentId").value}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        init();
+    </script>
+</body>
+</html>
